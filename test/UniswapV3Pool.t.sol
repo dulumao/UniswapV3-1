@@ -3,28 +3,19 @@ pragma solidity ^0.8.14;
 
 import "forge-std/Test.sol";
 import "./ERC20Mintable.sol";
-import "../src/UniswapV3Pool.sol";
-import "../src/lib/Position.sol";
-import "./TestUtils.sol";
+import "./UniswapV3Pool.Utils.t.sol";
 
-contract UniswapV3PoolTest is Test, TestUtils {
+import "../src/interfaces/IUniswapV3Pool.sol";
+import "../src/lib/LiquidityMath.sol";
+import "../src/lib/TickMath.sol";
+import "../src/UniswapV3Pool.sol";
+
+contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
     ERC20Mintable token0;
     ERC20Mintable token1;
     UniswapV3Pool pool;
     bool transferInMintCallback = true;
     bool transferInSwapCallback = true;
-    struct TestCaseParams {
-        uint256 wethBalance;
-        uint256 usdcBalance;
-        int24 currentTick;
-        int24 lowerTick;
-        int24 upperTick;
-        uint128 liquidity;
-        uint160 currentSqrtP;
-        bool transferInMintCallback;
-        bool transferInSwapCallback;
-        bool mintLiquidity;
-    }
 
     function setUp() public {
         token0 = new ERC20Mintable("Ether", "ETH", 18);

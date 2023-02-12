@@ -27,13 +27,13 @@ library LiquidityMath {
         } else if (sqrtPriceX96 <= sqrtPriceBX96) {
             // When the price range includes the current price, we want both tokens in amounts proportional to the price
             uint128 liquidity0 = getLiquidityForAmount0(
-                sqrtPriceAX96,
                 sqrtPriceX96,
+                sqrtPriceBX96,
                 amount0
             );
             uint128 liquidity1 = getLiquidityForAmount1(
+                sqrtPriceAX96,
                 sqrtPriceX96,
-                sqrtPriceBX96,
                 amount1
             );
 

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.14;
 
 import "./interfaces/IUniswapV3Pool.sol";
+import "./lib/TickMath.sol";
 
 // This contract help us calculate swap amounts without making a swap. Users will type in the amount
 // they want to sell, and we want to calculate and show them the amount they’ll get in exchange.
@@ -19,6 +20,7 @@ contract UniswapV3Quoter {
     struct QuoteParams {
         address pool;
         uint256 amountIn;
+        uint160 sqrtPriceLimitX96;
         bool zeroForOne;
     }
 
@@ -35,6 +37,13 @@ contract UniswapV3Quoter {
                 address(this),
                 params.zeroForOne,
                 params.amountIn,
+                params.sqrtPriceLimitX96 == 0
+                    ? (
+                        params.zeroForOne
+                            ? TickMath.MIN_SQRT_RATIO + 1
+                            : TickMath.MAX_SQRT_RATIO - 1
+                    )
+                    : params.sqrtPriceLimitX96,
                 // we will decode this to get pool address in uniswapV3SwapCallback
                 abi.encode(params.pool)
             )
