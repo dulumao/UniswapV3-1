@@ -3,9 +3,10 @@ pragma solidity ^0.8.14;
 
 import {Test, stdError} from "forge-std/Test.sol";
 import "./ERC20Mintable.sol";
-import "../src/UniswapV3Manager.sol";
-import "../src/lib/Position.sol";
 import "./TestUtils.sol";
+
+import "../src/lib/LiquidityMath.sol";
+import "../src/UniswapV3Manager.sol";
 
 contract UniswapV3ManagerTest is Test, TestUtils {
     ERC20Mintable token0;

@@ -14,23 +14,42 @@ contract UniswapV3PoolUtils is Test, TestUtils {
     struct TestCaseParams {
         uint256 wethBalance;
         uint256 usdcBalance;
-        int24 currentTick;
-        int24 lowerTick;
-        int24 upperTick;
-        uint128 liquidity;
-        uint160 currentSqrtP;
+        uint256 currentPrice;
+        LiquidityRange[] liquidity;
         bool transferInMintCallback;
         bool transferInSwapCallback;
         bool mintLiquidity;
     }
 
-    function liquidity(
+    function liquidityRange(
         uint256 lowerPrice,
         uint256 upperPrice,
         uint256 amount0,
         uint256 amount1,
         uint256 currentPrice
     ) internal pure returns (LiquidityRange memory range) {
-        range = LiquidityRange({lowerTick: tick(lowerPrice)});
+        range = LiquidityRange({
+            lowerTick: tick(lowerPrice),
+            upperTick: tick(upperPrice),
+            amount: LiquidityMath.getLiquidityForAmounts(
+                sqrtP(currentPrice),
+                sqrtP(lowerPrice),
+                sqrtP(upperPrice),
+                amount0,
+                amount1
+            )
+        });
+    }
+
+    function liquidityRange(
+        uint256 lowerPrice,
+        uint256 upperPrice,
+        uint128 amount
+    ) internal pure returns (LiquidityRange memory range) {
+        range = LiquidityRange({
+            lowerTick: tick(lowerPrice),
+            upperTick: tick(upperPrice),
+            amount: amount
+        });
     }
 }
