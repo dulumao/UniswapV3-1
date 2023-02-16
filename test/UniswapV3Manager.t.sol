@@ -25,6 +25,41 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
         extra = encodeExtra(address(token0), address(token1), address(this));
     }
 
+    function setupTestCase(TestCaseParams memory params)
+        internal
+        returns (uint256 poolBalance0, uint256 poolBalance1)
+    {
+        token0.mint(address(this), params.wethBalance);
+        token1.mint(address(this), params.usdcBalance);
+
+        pool = new UniswapV3Pool(
+            address(token0),
+            address(token1),
+            sqrtP(params.currentPrice),
+            tick(params.currentPrice)
+        );
+
+        if (params.mintLiquidity) {
+            token0.approve(address(manager), params.wethBalance);
+            token1.approve(address(manager), params.usdcBalance);
+
+            uint256 poolBalance0Tmp;
+            uint256 poolBalance1Tmp;
+
+            for (uint256 i = 0; i < params.mints.length; i++) {
+                params.mints[i].poolAddress = address(pool);
+                (poolBalance0Tmp, poolBalance1Tmp) = manager.mint(
+                    params.mints[i]
+                );
+                poolBalance0 += poolBalance0Tmp;
+                poolBalance1 += poolBalance1Tmp;
+            }
+        }
+
+        transferInMintCallback = params.transferInMintCallback;
+        transferInSwapCallback = params.transferInSwapCallback;
+    }
+
     function testMintInRange() public {
         IUniswapV3Manager.MintParams[]
             memory mints = new IUniswapV3Manager.MintParams[](1);
@@ -260,7 +295,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                 amount1: expectedAmount1,
                 lowerTick: mints[2].lowerTick,
                 upperTick: mints[2].upperTick,
-                positionLiquidity: liquidity(mints[1], 5000),
+                positionLiquidity: liquidity(mints[2], 5000),
                 currentLiquidity: liquidity(mints[0], 5000),
                 sqrtPriceX96: sqrtP(5000),
                 tick: tick(5000)
@@ -357,18 +392,67 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
         manager.mint(mints[0]);
     }
 
+    function testMintSlippageProtection() public {
+        uint256 amount0 = 1 ether;
+        uint256 amount1 = 5000 ether;
+        pool = new UniswapV3Pool(
+            address(token0),
+            address(token1),
+            sqrtP(5000),
+            tick(5000)
+        );
+
+        token0.mint(address(this), amount0);
+        token0.approve(address(manager), amount0);
+
+        token1.mint(address(this), amount1);
+        token1.approve(address(manager), amount1);
+
+        vm.expectRevert(
+            encodeSlippageCheckFailed(
+                0.998995580131581600 ether,
+                4999.999999999999999999 ether
+            )
+        );
+
+        manager.mint(
+            IUniswapV3Manager.MintParams({
+                poolAddress: address(pool),
+                lowerTick: tick(4545),
+                upperTick: tick(5500),
+                amount0Desired: amount0,
+                amount1Desired: amount1,
+                amount0Min: amount0,
+                amount1Min: amount1
+            })
+        );
+
+        manager.mint(
+            IUniswapV3Manager.MintParams({
+                poolAddress: address(pool),
+                lowerTick: tick(4545),
+                upperTick: tick(5500),
+                amount0Desired: amount0,
+                amount1Desired: amount1,
+                amount0Min: (amount0 * 99) / 100,
+                amount1Min: (amount1 * 99) / 100
+            })
+        );
+    }
+
     function testSwapBuyEth() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
             usdcBalance: 5000 ether,
-            currentTick: 85176,
-            lowerTick: 84222,
-            upperTick: 86129,
-            liquidity: 1517882343751509868544,
-            currentSqrtP: 5602277097478614198912276234240,
+            currentPrice: 5000,
+            mints: mints,
             transferInMintCallback: true,
             transferInSwapCallback: true,
-            mintLiqudity: true
+            mintLiquidity: true
         });
         (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
 
@@ -376,11 +460,55 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
         token1.mint(address(this), swapAmount);
         token1.approve(address(manager), swapAmount);
 
-        bytes memory extra = encodeExtra(
-            address(token0),
-            address(token1),
-            address(this)
+        int256 userBalance0Before = int256(token0.balanceOf(address(this)));
+        int256 userBalance1Before = int256(token1.balanceOf(address(this)));
+
+        (int256 amount0Delta, int256 amount1Delta) = manager.swap(
+            address(pool),
+            false,
+            swapAmount,
+            sqrtP(5004),
+            extra
         );
+
+        assertEq(amount0Delta, -0.008396874645169943 ether, "invalid ETH out");
+        assertEq(amount1Delta, 42 ether, "invalid USDC in");
+
+        assertSwapState(
+            ExpectedStateAfterSwap({
+                pool: pool,
+                token0: token0,
+                token1: token1,
+                userBalance0: uint256(userBalance0Before - amount0Delta),
+                userBalance1: uint256(userBalance1Before - amount1Delta),
+                poolBalance0: uint256(int256(poolBalance0) + amount0Delta),
+                poolBalance1: uint256(int256(poolBalance1) + amount1Delta),
+                sqrtPriceX96: 5604415652688968742392013927525, // 5003.8180249710795
+                tick: 85183,
+                currentLiquidity: liquidity(mints[0], 5000)
+            })
+        );
+    }
+
+    function testSwapBuyUsdc() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+
+        TestCaseParams memory params = TestCaseParams({
+            wethBalance: 1 ether,
+            usdcBalance: 5000 ether,
+            currentPrice: 5000,
+            mints: mints,
+            transferInMintCallback: true,
+            transferInSwapCallback: true,
+            mintLiquidity: true
+        });
+        (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
+
+        uint256 swapAmount = 0.01337 ether; // 0.01337 ether
+        token1.mint(address(this), swapAmount);
+        token1.approve(address(manager), swapAmount);
 
         int256 userBalance0Before = int256(token0.balanceOf(address(this)));
         int256 userBalance1Before = int256(token1.balanceOf(address(this)));
@@ -389,164 +517,65 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             address(pool),
             false,
             swapAmount,
-            extra
-        );
-
-        assertEq(amount0Delta, -0.008396714242162445 ether, "invalid ETH out");
-        assertEq(amount1Delta, 42 ether, "invalid USDC in");
-
-        assertEq(
-            token0.balanceOf(address(this)),
-            uint256(userBalance0Before - amount0Delta),
-            "invalid user ETH balance"
-        );
-        assertEq(
-            token1.balanceOf(address(this)),
-            uint256(userBalance1Before - amount1Delta),
-            "invalid user USDC balance"
-        );
-
-        assertEq(
-            token0.balanceOf(address(pool)),
-            uint256(int256(poolBalance0) + amount0Delta),
-            "invalid pool ETH balance"
-        );
-        assertEq(
-            token1.balanceOf(address(pool)),
-            uint256(int256(poolBalance1) + amount1Delta),
-            "invalid pool USDC balance"
-        );
-
-        (uint160 sqrtPriceX96, int24 tick) = pool.slot0();
-        assertEq(
-            sqrtPriceX96,
-            5604469350942327889444743441197,
-            "invalid current sqrtP"
-        );
-        assertEq(tick, 85184, "invalid current tick");
-        assertEq(
-            pool.liquidity(),
-            1517882343751509868544,
-            "invalid current liquidity"
-        );
-    }
-
-    function testSwapBuyUsdc() public {
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentTick: 85176,
-            lowerTick: 84222,
-            upperTick: 86129,
-            liquidity: 1517882343751509868544,
-            currentSqrtP: 5602277097478614198912276234240,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiqudity: true
-        });
-        (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
-
-        uint256 swapAmount = 0.01337 ether;
-        token0.mint(address(this), swapAmount);
-        token0.approve(address(manager), swapAmount);
-
-        bytes memory extra = encodeExtra(
-            address(token0),
-            address(token1),
-            address(this)
-        );
-
-        int256 userBalance0Before = int256(token0.balanceOf(address(this)));
-        int256 userBalance1Before = int256(token1.balanceOf(address(this)));
-
-        (int256 amount0Delta, int256 amount1Delta) = manager.swap(
-            address(pool),
-            true,
-            swapAmount,
+            sqrtP(4993),
             extra
         );
 
         assertEq(amount0Delta, 0.01337 ether, "invalid ETH in");
         assertEq(
             amount1Delta,
-            -66.808388890199406685 ether,
+            -66.807123823853842027 ether,
             "invalid USDC out"
         );
 
-        assertEq(
-            token0.balanceOf(address(this)),
-            uint256(userBalance0Before - amount0Delta),
-            "invalid user ETH balance"
-        );
-        assertEq(
-            token1.balanceOf(address(this)),
-            uint256(userBalance1Before - amount1Delta),
-            "invalid user USDC balance"
-        );
-
-        assertEq(
-            token0.balanceOf(address(pool)),
-            uint256(int256(poolBalance0) + amount0Delta),
-            "invalid pool ETH balance"
-        );
-        assertEq(
-            token1.balanceOf(address(pool)),
-            uint256(int256(poolBalance1) + amount1Delta),
-            "invalid pool USDC balance"
-        );
-
-        (uint160 sqrtPriceX96, int24 tick) = pool.slot0();
-        assertEq(
-            sqrtPriceX96,
-            5598789932670288701514545755210,
-            "invalid current sqrtP"
-        );
-        assertEq(tick, 85163, "invalid current tick");
-        assertEq(
-            pool.liquidity(),
-            1517882343751509868544,
-            "invalid current liquidity"
+        assertSwapState(
+            ExpectedStateAfterSwap({
+                pool: pool,
+                token0: token0,
+                token1: token1,
+                userBalance0: uint256(userBalance0Before - amount0Delta),
+                userBalance1: uint256(userBalance1Before - amount1Delta),
+                poolBalance0: uint256(int256(poolBalance0) + amount0Delta),
+                poolBalance1: uint256(int256(poolBalance1) + amount1Delta),
+                sqrtPriceX96: 5598737223630966236662554421688, // 5003.8180249710795
+                tick: 85163,
+                currentLiquidity: liquidity(mints[0], 5000)
+            })
         );
     }
 
     function testSwapMixed() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
             usdcBalance: 5000 ether,
-            currentTick: 85176,
-            lowerTick: 84222,
-            upperTick: 86129,
-            liquidity: 1517882343751509868544,
-            currentSqrtP: 5602277097478614198912276234240,
+            currentPrice: 5000,
+            mints: mints,
             transferInMintCallback: true,
             transferInSwapCallback: true,
-            mintLiqudity: true
+            mintLiquidity: true
         });
         (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
 
-        // Mint WETH
-        uint256 ethAmount = 0.01337 ether;
-        token0.mint(address(this), ethAmount);
-        token0.approve(address(manager), ethAmount);
+        uint256 ethAmount = 0.01337 ether; // 0.01337 ether
+        token1.mint(address(this), ethAmount);
+        token1.approve(address(manager), ethAmount);
 
-        // Mint USDC
-        uint256 usdcAmount = 55 ether;
+        uint256 usdcAmount = 55 ether; // 55 USDC
         token1.mint(address(this), usdcAmount);
         token1.approve(address(manager), usdcAmount);
-
-        bytes memory extra = encodeExtra(
-            address(token0),
-            address(token1),
-            address(this)
-        );
 
         int256 userBalance0Before = int256(token0.balanceOf(address(this)));
         int256 userBalance1Before = int256(token1.balanceOf(address(this)));
 
         (int256 amount0Delta1, int256 amount1Delta1) = manager.swap(
             address(pool),
-            true,
+            false,
             ethAmount,
+            sqrtP(4990),
             extra
         );
 
@@ -554,146 +583,99 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             address(pool),
             false,
             usdcAmount,
+            sqrtP(5004),
             extra
         );
 
-        assertEq(
-            token0.balanceOf(address(this)),
-            uint256(userBalance0Before - amount0Delta1 - amount0Delta2),
-            "invalid user ETH balance"
-        );
-        assertEq(
-            token1.balanceOf(address(this)),
-            uint256(userBalance1Before - amount1Delta1 - amount1Delta2),
-            "invalid user USDC balance"
-        );
-        assertEq(
-            token0.balanceOf(address(pool)),
-            uint256(int256(poolBalance0) + amount0Delta1 + amount0Delta2),
-            "invalid pool ETH balance"
-        );
-        assertEq(
-            token1.balanceOf(address(pool)),
-            uint256(int256(poolBalance1) + amount1Delta1 + amount1Delta2),
-            "invalid pool USDC balance"
-        );
-        (uint160 sqrtPriceX96, int24 tick) = pool.slot0();
-        assertEq(
-            sqrtPriceX96,
-            5601660740777532820068967097654,
-            "invalid current sqrtP"
-        );
-        assertEq(tick, 85173, "invalid current tick");
-        assertEq(
-            pool.liquidity(),
-            1517882343751509868544,
-            "invalid current liquidity"
+        assertSwapState(
+            ExpectedStateAfterSwap({
+                pool: pool,
+                token0: token0,
+                token1: token1,
+                userBalance0: uint256(
+                    userBalance0Before - amount0Delta1 - amount0Delta2
+                ),
+                userBalance1: uint256(
+                    userBalance1Before - amount1Delta1 - amount1Delta2
+                ),
+                poolBalance0: uint256(
+                    int256(poolBalance0) + amount0Delta1 + amount0Delta2
+                ),
+                poolBalance1: uint256(
+                    int256(poolBalance1) + amount1Delta1 + amount1Delta2
+                ),
+                sqrtPriceX96: 5601607565086694240599300641950, // 5003.8180249710795
+                tick: 85173,
+                currentLiquidity: liquidity(mints[0], 5000)
+            })
         );
     }
 
     function testSwapBuyEthNotEnoughLiquidity() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
             usdcBalance: 5000 ether,
-            currentTick: 85176,
-            lowerTick: 84222,
-            upperTick: 86129,
-            liquidity: 1517882343751509868544,
-            currentSqrtP: 5602277097478614198912276234240,
+            currentPrice: 5000,
+            mints: mints,
             transferInMintCallback: true,
-            transferInSwapCallback: false,
-            mintLiqudity: true
+            transferInSwapCallback: true,
+            mintLiquidity: true
         });
         setupTestCase(params);
 
         uint256 swapAmount = 5300 ether;
         token1.mint(address(this), swapAmount);
-        token1.approve(address(this), swapAmount);
+        token1.approve(address(manager), swapAmount);
 
-        bytes memory extra = encodeExtra(
-            address(token0),
-            address(token1),
-            address(this)
-        );
-
-        vm.expectRevert(stdError.arithmeticError);
-        manager.swap(address(pool), false, swapAmount, extra);
+        vm.expectRevert(encodeError("NotEnoughLiquidity()"));
+        manager.swap(address(pool), false, swapAmount, 0, extra);
     }
 
     function testSwapBuyUsdcNotEnoughLiquidity() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
             usdcBalance: 5000 ether,
-            currentTick: 85176,
-            lowerTick: 84222,
-            upperTick: 86129,
-            liquidity: 1517882343751509868544,
-            currentSqrtP: 5602277097478614198912276234240,
+            currentPrice: 5000,
+            mints: mints,
             transferInMintCallback: true,
-            transferInSwapCallback: false,
-            mintLiqudity: true
+            transferInSwapCallback: true,
+            mintLiquidity: true
         });
         setupTestCase(params);
 
         uint256 swapAmount = 1.1 ether;
-        token0.mint(address(this), swapAmount);
-        token0.approve(address(this), swapAmount);
+        token1.mint(address(this), swapAmount);
+        token1.approve(address(manager), swapAmount);
 
-        vm.expectRevert(stdError.arithmeticError);
-        manager.swap(address(pool), true, swapAmount, extra);
+        vm.expectRevert(encodeError("NotEnoughLiquidity()"));
+        manager.swap(address(pool), true, swapAmount, 0, extra);
     }
 
     function testSwapInsufficientInputAmount() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+
         TestCaseParams memory params = TestCaseParams({
             wethBalance: 1 ether,
             usdcBalance: 5000 ether,
-            currentTick: 85176,
-            lowerTick: 84222,
-            upperTick: 86129,
-            liquidity: 1517882343751509868544,
-            currentSqrtP: 5602277097478614198912276234240,
+            currentPrice: 5000,
+            mints: mints,
             transferInMintCallback: true,
             transferInSwapCallback: false,
-            mintLiqudity: true
+            mintLiquidity: true
         });
         setupTestCase(params);
 
         vm.expectRevert(stdError.arithmeticError);
-        manager.swap(address(pool), false, 42 ether, extra);
-    }
-
-    function setupTestCase(TestCaseParams memory params)
-        internal
-        returns (uint256 poolBalance0, uint256 poolBalance1)
-    {
-        token0.mint(address(this), params.wethBalance);
-        token1.mint(address(this), params.usdcBalance);
-
-        pool = new UniswapV3Pool(
-            address(token0),
-            address(token1),
-            params.currentSqrtP,
-            params.currentTick
-        );
-
-        if (params.mintLiqudity) {
-            token0.approve(address(manager), params.wethBalance);
-            token1.approve(address(manager), params.usdcBalance);
-
-            uint256 poolBalance0Tmp;
-            uint256 poolBalance1Tmp;
-
-            for (uint256 i = 0; i < params.mints.length; i++) {
-                params.mints[i].poolAddress = address(pool);
-                (poolBalance0Tmp, poolBalance1Tmp) = manager.mint(
-                    params.mints[i]
-                );
-                poolBalance0 += poolBalance0Tmp;
-                poolBalance1 += poolBalance1Tmp;
-            }
-        }
-
-        transferInMintCallback = params.transferInMintCallback;
-        transferInSwapCallback = params.transferInSwapCallback;
+        manager.swap(address(pool), false, 42 ether, sqrtP(5010), extra);
     }
 }
