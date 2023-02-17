@@ -10,11 +10,11 @@ contract UniswapV3ManagerUtils is Test, TestUtils {
     struct TestCaseParams {
         uint256 wethBalance;
         uint256 usdcBalance;
-        uint160 currentPrice;
+        uint256 currentPrice;
         IUniswapV3Manager.MintParams[] mints;
         bool transferInMintCallback;
         bool transferInSwapCallback;
-        bool mintLiquidity;
+        bool mintLiqudity;
     }
 
     function mintParams(
@@ -24,7 +24,7 @@ contract UniswapV3ManagerUtils is Test, TestUtils {
         uint256 amount1
     ) internal pure returns (IUniswapV3Manager.MintParams memory params) {
         params = IUniswapV3Manager.MintParams({
-            poolAddress: address(0x0),
+            poolAddress: address(0x0), // set in setupTestCase
             lowerTick: tick(lowerPrice),
             upperTick: tick(upperPrice),
             amount0Desired: amount0,

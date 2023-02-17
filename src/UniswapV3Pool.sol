@@ -21,15 +21,15 @@ contract UniswapV3Pool is IUniswapV3Pool {
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
 
-    // Each tick has an index i and corresponds to a certain price p(i) = 1.0001^i
-    // Taking powers of 1.0001 has a desi desirable property: the difference between two adjacent ticks is 0.01% or 1 basis point.
-    // Ticks are integers that can be positive and negative and, of course, they’re not infinite.
-    // Uniswap V3 stores sqrt(P) as a fixed point Q64.96 number, which is a rational number that
-    // uses 64 bits for the integer part and 96 bits for the fractional part.
-    // Thus, prices (equal to the square of P) are within the range [2^-128, 2^128].
-    // And ticks are within the range [−887272,887272]
-    int24 internal constant MIN_TICK = -887272;
-    int24 internal constant MAX_TICK = -MIN_TICK;
+    // // Each tick has an index i and corresponds to a certain price p(i) = 1.0001^i
+    // // Taking powers of 1.0001 has a desi desirable property: the difference between two adjacent ticks is 0.01% or 1 basis point.
+    // // Ticks are integers that can be positive and negative and, of course, they’re not infinite.
+    // // Uniswap V3 stores sqrt(P) as a fixed point Q64.96 number, which is a rational number that
+    // // uses 64 bits for the integer part and 96 bits for the fractional part.
+    // // Thus, prices (equal to the square of P) are within the range [2^-128, 2^128].
+    // // And ticks are within the range [−887272,887272]
+    // int24 internal constant MIN_TICK = -887272;
+    // int24 internal constant MAX_TICK = -MIN_TICK;
 
     // Pool tokens, immutable
     address public immutable token0;
@@ -77,8 +77,8 @@ contract UniswapV3Pool is IUniswapV3Pool {
     {
         if (
             lowerTick >= upperTick ||
-            lowerTick < MIN_TICK ||
-            upperTick > MAX_TICK
+            lowerTick < TickMath.MIN_TICK ||
+            upperTick > TickMath.MAX_TICK
         ) revert InvalidTickRange();
 
         if (amount == 0) revert ZeroLiquidity();
@@ -103,25 +103,25 @@ contract UniswapV3Pool is IUniswapV3Pool {
         );
         position.update(amount);
 
-        Slot0 memory _slot0 = slot0;
+        Slot0 memory slot0_ = slot0;
 
-        if (_slot0.tick < lowerTick) {
+        if (slot0_.tick < lowerTick) {
             // If the price range is above the current price, we want the liquidity to be composed of token0
             amount0 = Math.calcAmount0Delta(
                 TickMath.getSqrtRatioAtTick(lowerTick),
                 TickMath.getSqrtRatioAtTick(upperTick),
                 amount
             );
-        } else if (_slot0.tick < upperTick) {
+        } else if (slot0_.tick < upperTick) {
             // When the price range includes the current price, we want both tokens in amounts proportional to the price
             amount0 = Math.calcAmount0Delta(
-                _slot0.sqrtPriceX96,
+                slot0_.sqrtPriceX96,
                 TickMath.getSqrtRatioAtTick(upperTick),
                 amount
             );
 
             amount1 = Math.calcAmount1Delta(
-                _slot0.sqrtPriceX96,
+                slot0_.sqrtPriceX96,
                 TickMath.getSqrtRatioAtTick(lowerTick),
                 amount
             );
@@ -178,16 +178,16 @@ contract UniswapV3Pool is IUniswapV3Pool {
         bytes calldata data
     ) public returns (int256 amount0, int256 amount1) {
         // Caching for gas saving
-        Slot0 memory _slot0 = slot0;
+        Slot0 memory slot0_ = slot0;
         uint128 _liquidity = liquidity;
 
         // To protect swaps from sandwich attacks, we need to add one more sqrtPriceLimitX96 parameter to
         // swap function, we want to let user choose a stop price, a price at which swapping will stop.
         if (
             zeroForOne
-                ? sqrtPriceLimitX96 > _slot0.sqrtPriceX96 ||
+                ? sqrtPriceLimitX96 > slot0_.sqrtPriceX96 ||
                     sqrtPriceLimitX96 < TickMath.MIN_SQRT_RATIO
-                : sqrtPriceLimitX96 < _slot0.sqrtPriceX96 ||
+                : sqrtPriceLimitX96 < slot0_.sqrtPriceX96 ||
                     sqrtPriceLimitX96 > TickMath.MAX_SQRT_RATIO
         ) {
             revert InvalidPriceLimit();
@@ -196,8 +196,8 @@ contract UniswapV3Pool is IUniswapV3Pool {
         SwapState memory state = SwapState({
             amountSpecifiedRemaining: amountSpecified,
             amountCalculated: 0,
-            sqrtPriceX96: _slot0.sqrtPriceX96,
-            tick: _slot0.tick,
+            sqrtPriceX96: slot0_.sqrtPriceX96,
+            tick: slot0_.tick,
             liquidity: _liquidity
         });
 
@@ -278,7 +278,7 @@ contract UniswapV3Pool is IUniswapV3Pool {
         }
 
         // need to update the current tick and sqrtP of contract state
-        if (state.tick != _slot0.tick) {
+        if (state.tick != slot0_.tick) {
             (slot0.sqrtPriceX96, slot0.tick) = (state.sqrtPriceX96, state.tick);
         }
 

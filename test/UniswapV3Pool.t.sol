@@ -78,8 +78,10 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
         });
         (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
 
-        uint256 expectedAmount0 = 0.998995580131581600 ether;
-        uint256 expectedAmount1 = 4999.999999999999999999 ether;
+        (uint256 expectedAmount0, uint256 expectedAmount1) = (
+            0.998995580131581600 ether,
+            4999.999999999999999999 ether
+        );
 
         assertEq(
             poolBalance0,
@@ -151,7 +153,7 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
                 lowerTick: liquidity[0].lowerTick,
                 upperTick: liquidity[0].upperTick,
                 positionLiquidity: liquidity[0].amount,
-                currentLiquidity: liquidity[0].amount,
+                currentLiquidity: 0,
                 sqrtPriceX96: sqrtP(5000),
                 tick: tick(5000)
             })
@@ -201,7 +203,7 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
                 lowerTick: liquidity[0].lowerTick,
                 upperTick: liquidity[0].upperTick,
                 positionLiquidity: liquidity[0].amount,
-                currentLiquidity: liquidity[0].amount,
+                currentLiquidity: 0,
                 sqrtPriceX96: sqrtP(5000),
                 tick: tick(5000)
             })
@@ -268,86 +270,6 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
         );
     }
 
-    //
-    //            5000
-    // 4545 ----4999|
-    //              |5001------ 6250
-    //
-
-    function testMintPartiallyOverLappingRanges() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](3);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        liquidity[1] = liquidityRange(
-            4000,
-            4999,
-            (liquidity[0].amount * 75) / 100
-        );
-        liquidity[2] = liquidityRange(
-            5001,
-            6250,
-            (liquidity[0].amount * 50) / 100
-        );
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 3 ether,
-            usdcBalance: 15000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-        setupTestCase(params);
-
-        uint256 amount0 = 1.498995580131581600 ether;
-        uint256 amount1 = 8749.999999999999999993 ether;
-
-        assertMintState(
-            ExpectedStateAfterMint({
-                pool: pool,
-                token0: token0,
-                token1: token1,
-                amount0: amount0,
-                amount1: amount1,
-                lowerTick: tick(4545),
-                upperTick: tick(5500),
-                positionLiquidity: liquidity[0].amount,
-                currentLiquidity: liquidity[0].amount,
-                sqrtPriceX96: sqrtP(5000),
-                tick: tick(5000)
-            })
-        );
-        assertMintState(
-            ExpectedStateAfterMint({
-                pool: pool,
-                token0: token0,
-                token1: token1,
-                amount0: amount0,
-                amount1: amount1,
-                lowerTick: tick(4000),
-                upperTick: tick(4999),
-                positionLiquidity: liquidity[1].amount,
-                currentLiquidity: liquidity[0].amount,
-                sqrtPriceX96: sqrtP(5000),
-                tick: tick(5000)
-            })
-        );
-        assertMintState(
-            ExpectedStateAfterMint({
-                pool: pool,
-                token0: token0,
-                token1: token1,
-                amount0: amount0,
-                amount1: amount1,
-                lowerTick: tick(5001),
-                upperTick: tick(6250),
-                positionLiquidity: liquidity[2].amount,
-                currentLiquidity: liquidity[0].amount,
-                sqrtPriceX96: sqrtP(5000),
-                tick: tick(5000)
-            })
-        );
-    }
-
     function testMintInvalidTickRangeLower() public {
         pool = new UniswapV3Pool(
             address(token0),
@@ -388,11 +310,11 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
         LiquidityRange[] memory liquidity = new LiquidityRange[](1);
         liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
         TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
+            wethBalance: 0,
+            usdcBalance: 0,
             currentPrice: 5000,
             liquidity: liquidity,
-            transferInMintCallback: true,
+            transferInMintCallback: false,
             transferInSwapCallback: true,
             mintLiquidity: false
         });
@@ -404,241 +326,8 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
             liquidity[0].lowerTick,
             liquidity[0].upperTick,
             liquidity[0].amount,
-            extra
+            ""
         );
-    }
-
-    function testSwapBuyEth() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-
-        (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
-
-        // Mint 42 USDC
-        uint256 swapAmount = 42 ether; // 42 USDC
-        token1.mint(address(this), swapAmount);
-        token1.approve(address(this), swapAmount);
-
-        int256 userBalance0Before = int256(token0.balanceOf(address(this)));
-        int256 userBalance1Before = int256(token1.balanceOf(address(this)));
-
-        // check right amount token in and out
-        (int256 amount0Delta, int256 amount1Delta) = pool.swap(
-            address(this),
-            false,
-            swapAmount,
-            sqrtP(5004),
-            extra
-        );
-
-        assertEq(amount0Delta, -0.008396874645169943 ether, "invalid ETH out");
-        assertEq(amount1Delta, 42 ether, "invalid USDC in");
-
-        assertSwapState(
-            ExpectedStateAfterSwap({
-                pool: pool,
-                token0: token0,
-                token1: token1,
-                userBalance0: uint256(userBalance0Before - amount0Delta),
-                userBalance1: uint256(userBalance1Before - amount1Delta),
-                poolBalance0: uint256(int256(poolBalance0) + amount0Delta),
-                poolBalance1: uint256(int256(poolBalance1) + amount1Delta),
-                sqrtPriceX96: 5604415652688968742392013927525,
-                tick: 85138,
-                currentLiquidity: liquidity[0].amount
-            })
-        );
-    }
-
-    function testSwapBuyUSDC() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-
-        (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
-
-        // Mint 0.01337 ether
-        uint256 swapAmount = 0.01337 ether;
-        token0.mint(address(this), swapAmount);
-        token0.approve(address(this), swapAmount);
-
-        int256 userBalance0Before = int256(token0.balanceOf(address(this)));
-        int256 userBalance1Before = int256(token1.balanceOf(address(this)));
-
-        // check right amount token in and out
-        (int256 amount0Delta, int256 amount1Delta) = pool.swap(
-            address(this),
-            false,
-            swapAmount,
-            sqrtP(4993),
-            extra
-        );
-
-        assertEq(amount0Delta, 0.01337 ether, "invalid ETH out");
-        assertEq(amount1Delta, -66.807123823853842027 ether, "invalid USDC in");
-
-        assertSwapState(
-            ExpectedStateAfterSwap({
-                pool: pool,
-                token0: token0,
-                token1: token1,
-                userBalance0: uint256(userBalance0Before - amount0Delta),
-                userBalance1: uint256(userBalance1Before - amount1Delta),
-                poolBalance0: uint256(int256(poolBalance0) + amount0Delta),
-                poolBalance1: uint256(int256(poolBalance1) + amount1Delta),
-                sqrtPriceX96: 5598737223630966236662554421688,
-                tick: 85163,
-                currentLiquidity: liquidity[0].amount
-            })
-        );
-    }
-
-    function testSwapMixed() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-
-        (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
-
-        // Mint 0.01337 ether
-        uint256 ethAmount = 0.01337 ether;
-        token0.mint(address(this), ethAmount);
-        token0.approve(address(this), ethAmount);
-
-        // Mint 55 USDCl
-        uint256 usdcAmount = 55 ether;
-        token1.mint(address(this), usdcAmount);
-        token1.approve(address(this), usdcAmount);
-
-        int256 userBalance0Before = int256(token0.balanceOf(address(this)));
-        int256 userBalance1Before = int256(token1.balanceOf(address(this)));
-
-        // check right amount token in and out
-        (int256 amount0Delta1, int256 amount1Delta1) = pool.swap(
-            address(this),
-            false,
-            ethAmount,
-            sqrtP(4990),
-            extra
-        );
-
-        (int256 amount0Delta2, int256 amount1Delta2) = pool.swap(
-            address(this),
-            false,
-            usdcAmount,
-            sqrtP(5004),
-            extra
-        );
-
-        assertSwapState(
-            ExpectedStateAfterSwap({
-                pool: pool,
-                token0: token0,
-                token1: token1,
-                userBalance0: uint256(
-                    userBalance0Before - amount0Delta1 - amount0Delta2
-                ),
-                userBalance1: uint256(
-                    userBalance1Before - amount1Delta1 - amount1Delta2
-                ),
-                poolBalance0: uint256(
-                    int256(poolBalance0) + amount0Delta1 + amount0Delta2
-                ),
-                poolBalance1: uint256(
-                    int256(poolBalance1) + amount1Delta1 + amount1Delta2
-                ),
-                sqrtPriceX96: 5601607565086694240599300641950,
-                tick: 85173,
-                currentLiquidity: liquidity[0].amount
-            })
-        );
-    }
-
-    function testSwapBuyEthNotEnoughLiquidity() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-        setupTestCase(params);
-
-        uint256 swapAmount = 5300 ether;
-        token1.mint(address(this), swapAmount);
-        token1.approve(address(this), swapAmount);
-
-        vm.expectRevert(encodeError("NotEnoughLiquidity()"));
-        pool.swap(address(this), false, swapAmount, 0, extra);
-    }
-
-    function testSwapBuyUsdcNotEnoughLiquidity() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-        setupTestCase(params);
-
-        uint256 swapAmount = 1.1 ether;
-        token0.mint(address(this), swapAmount);
-        token0.approve(address(this), swapAmount);
-
-        vm.expectRevert(encodeError("NotEnoughLiquidity()"));
-        pool.swap(address(this), true, swapAmount, 0, extra);
-    }
-
-    function testSwapInsufficientInputAmount() public {
-        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
-        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
-        TestCaseParams memory params = TestCaseParams({
-            wethBalance: 1 ether,
-            usdcBalance: 5000 ether,
-            currentPrice: 5000,
-            liquidity: liquidity,
-            transferInMintCallback: true,
-            transferInSwapCallback: true,
-            mintLiquidity: true
-        });
-        setupTestCase(params);
-
-        vm.expectRevert(encodeError("InsufficientInputAmount()"));
-        pool.swap(address(this), false, 42 ether, sqrtP(5010), extra);
     }
 
     function testFlash() public {

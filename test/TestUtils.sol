@@ -66,7 +66,7 @@ abstract contract TestUtils is Test {
         );
         assertEq(
             expected.token1.balanceOf(address(expected.pool)),
-            expected.amount0,
+            expected.amount1,
             "incorrect token1 balance of pool"
         );
 
@@ -114,7 +114,7 @@ abstract contract TestUtils is Test {
         );
         assertEq(
             tickLiquidityNet,
-            int128(expected.positionLiquidity),
+            -int128(expected.positionLiquidity),
             "incorrect upper tick net liquidity"
         );
 
