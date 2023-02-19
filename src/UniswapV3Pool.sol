@@ -6,6 +6,7 @@ import "./interfaces/IUniswapV3MintCallback.sol";
 import "./interfaces/IUniswapV3SwapCallback.sol";
 import "./interfaces/IUniswapV3FlashCallback.sol";
 import "./interfaces/IUniswapV3Pool.sol";
+import "./interfaces/IUniswapV3PoolDeployer.sol";
 
 import "./lib/LiquidityMath.sol";
 import "./lib/Math.sol";
@@ -32,8 +33,10 @@ contract UniswapV3Pool is IUniswapV3Pool {
     // int24 internal constant MAX_TICK = -MIN_TICK;
 
     // Pool tokens, immutable
+    address public immutable factory;
     address public immutable token0;
     address public immutable token1;
+    uint24 public immutable tickSpacing;
 
     // We need to track the current price and the related tick.
     // We’ll store them in one storage slot to optimize gas consumption
@@ -49,14 +52,16 @@ contract UniswapV3Pool is IUniswapV3Pool {
     // Tick bit mapping
     mapping(int16 => uint256) public tickBitmap;
 
-    constructor(
-        address _token0,
-        address _token1,
-        uint160 sqrtPriceX96,
-        int24 tick
-    ) {
-        token0 = _token0;
-        token1 = _token1;
+    constructor() {
+        (factory, token0, token1, tickSpacing) = IUniswapV3PoolDeployer(
+            msg.sender
+        ).parameters();
+    }
+
+    function initialize(uint160 sqrtPriceX96) public {
+        if (slot0.sqrtPriceX96 != 0) revert AlreadyInitialized();
+
+        int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
         slot0 = Slot0({sqrtPriceX96: sqrtPriceX96, tick: tick});
     }

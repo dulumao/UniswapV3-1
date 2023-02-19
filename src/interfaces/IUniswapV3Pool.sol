@@ -10,6 +10,7 @@ interface IUniswapV3Pool {
     error InsufficientInputAmount();
     error NotEnoughLiquidity();
     error InvalidPriceLimit();
+    error AlreadyInitialized();
 
     ////////////////////////////////////////////
     ///////////////    Events    ///////////////

@@ -3,41 +3,47 @@ pragma solidity ^0.8.14;
 
 import "forge-std/console.sol";
 import "forge-std/Script.sol";
-import "../test/ERC20Mintable.sol";
-import "../src/UniswapV3Pool.sol";
+
+import "../src/interfaces/IUniswapV3Manager.sol";
+import "../src/lib/FixedPoint96.sol";
+import "../src/lib/Math.sol";
+import "../src/UniswapV3Factory.sol";
 import "../src/UniswapV3Manager.sol";
+import "../src/UniswapV3Pool.sol";
+import "../src/UniswapV3Quoter.sol";
+import "../test/ERC20Mintable.sol";
+import "../test/TestUtils.sol";
 
-contract DeployDevelopment is Script {
+contract DeployDevelopment is Script, TestUtils {
+    struct TokenBalances {
+        uint256 uni;
+        uint256 usdc;
+        uint256 usdt;
+        uint256 wbtc;
+        uint256 weth;
+    }
+
+    TokenBalances balances =
+        TokenBalances({
+            uni: 200 ether,
+            usdc: 2_000_000 ether,
+            usdt: 2_000_000 ether,
+            wbtc: 20 ether,
+            weth: 100 ether
+        });
+
     function run() public {
-        uint256 wethBalance = 1 ether;
-        uint256 usdcBalance = 5042 ether;
-        int24 currentTick = 85176;
-        uint160 currentSqrtP = 5602277097478614198912276234240;
-
-        // start broadcast
+        // Deploying start
         vm.startBroadcast();
-        ERC20Mintable token0 = new ERC20Mintable("Wrapped Ether", "WETH", 18);
-        ERC20Mintable token1 = new ERC20Mintable("USD Coin", "USDC", 18);
 
-        // Deploy
-        UniswapV3Pool pool = new UniswapV3Pool(
-            address(token0),
-            address(token1),
-            currentSqrtP,
-            currentTick
-        );
-        UniswapV3Manager manager = new UniswapV3Manager();
+        ERC20Mintable weth = new ERC20Mintable("Wrapped Ether", "WETH", 18);
+        ERC20Mintable usdc = new ERC20Mintable("USD Coin", "USDC", 18);
+        ERC20Mintable uni = new ERC20Mintable("Uniswap Coin", "UNI", 18);
+        ERC20Mintable wbtc = new ERC20Mintable("Wrapped Bitcoin", "WBTC", 18);
+        ERC20Mintable usdt = new ERC20Mintable("USD Token", "USDT", 18);
 
-        // mint token to our address
-        token0.mint(msg.sender, wethBalance);
-        token1.mint(msg.sender, usdcBalance);
-
-        // stop broadcast
-        vm.stopBroadcast();
-
-        console.log("WETH address", address(token0));
-        console.log("USDC address", address(token1));
-        console.log("Pool address", address(pool));
-        console.log("Manager address", address(manager));
+        // UniswapV3Factory factory = new UniswapV3Factory();
+        // UniswapV3Manager manager = new UniswapV3Manager(address(factory));
+        // UniswapV3Pool wethUsdc = deployPool()
     }
 }

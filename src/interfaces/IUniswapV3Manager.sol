@@ -3,9 +3,12 @@ pragma solidity ^0.8.14;
 
 interface IUniswapV3Manager {
     error SlippageCheckFailed(uint256 amount0, uint256 amount1);
+    error TooLittleReceived(uint256 amountOut);
 
     struct MintParams {
-        address poolAddress;
+        address tokenA;
+        address tokenB;
+        uint24 tickSpacing;
         int24 lowerTick;
         int24 upperTick;
         uint256 amount0Desired;
@@ -14,15 +17,25 @@ interface IUniswapV3Manager {
         uint256 amount1Min;
     }
 
-    function mint(MintParams calldata params)
-        external
-        returns (uint256 amount0, uint256 amount1);
+    struct SwapSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 tickSpacing;
+        uint256 amountIn;
+        uint160 sqrtPriceLimitX96;
+    }
 
-    function swap(
-        address _poolAddress,
-        bool zeroForOne,
-        uint256 amountSpecified,
-        uint160 sqrtPriceLimitX96,
-        bytes calldata data
-    ) external returns (int256, int256);
+    // We need to implement another slippage protection, which checks the final output amount and compares it
+    // with minAmountOut: the slippage protection fails when the final output amount is smaller than minAmountOut
+    struct SwapParams {
+        bytes path;
+        address recipient;
+        uint256 amountIn;
+        uint256 minAmountOut;
+    }
+
+    struct SwapCallbackData {
+        bytes path;
+        address payer;
+    }
 }
