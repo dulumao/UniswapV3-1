@@ -219,7 +219,7 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
             (step.nextTick, ) = tickBitmap.nextInitializedTickWithinOneWord(
                 state.tick,
-                1,
+                int24(tickSpacing),
                 zeroForOne
             );
 
@@ -340,7 +340,7 @@ contract UniswapV3Pool is IUniswapV3Pool {
             amount0,
             amount1,
             slot0.sqrtPriceX96,
-            liquidity,
+            state.liquidity,
             slot0.tick
         );
     }
