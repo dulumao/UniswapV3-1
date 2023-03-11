@@ -7,24 +7,25 @@ import "./UniswapV3Pool.sol";
 contract UniswapV3Factory is IUniswapV3PoolDeployer {
     PoolParameters public parameters;
 
-    // tickSpacing => pool
-    mapping(uint24 => bool) public tickSpacings;
-    // token0 => token1 => tickSpacing => pool
+    // fees => tickSpacing
+    mapping(uint24 => uint24) public fees;
+    // token0 => token1 => fee => pool
     mapping(address => mapping(address => mapping(uint24 => address)))
         public pools;
 
     constructor() {
-        tickSpacings[10] = true;
-        tickSpacings[60] = true;
+        // Fee amounts are hundredths of the basis point. That is, 1 fee unit is 0.0001%, 500 is 0.05%, and 3000 is 0.3%.
+        fees[500] = 10;
+        fees[3000] = 60;
     }
 
     function createPool(
         address tokenX,
         address tokenY,
-        uint24 tickSpacing
+        uint24 fee
     ) public returns (address pool) {
         if (tokenX == tokenY) revert TokensMustBeDifferent();
-        if (!tickSpacings[tickSpacing]) revert UnsupportedTickSpacing();
+        if (fees[fee] == 0) revert UnsupportedFee();
 
         // Addresses are hashes, and hashes are numbers, so we can say “less than” or “greater that” when comparing addresses
         (tokenX, tokenY) = tokenX < tokenY
@@ -32,14 +33,15 @@ contract UniswapV3Factory is IUniswapV3PoolDeployer {
             : (tokenY, tokenX);
 
         if (tokenX == address(0)) revert ZeroAddressNotAllowed();
-        if (pools[tokenX][tokenY][tickSpacing] != address(0))
+        if (pools[tokenX][tokenY][fee] != address(0))
             revert PoolAlreadyExists();
 
         parameters = PoolParameters({
             factory: address(this),
             token0: tokenX,
             token1: tokenY,
-            tickSpacing: tickSpacing
+            tickSpacing: fees[fee],
+            fee: fee
         });
 
         // EVM has two ways of deploying contracts: via CREATE or via CREATE2 opcode.
@@ -47,10 +49,10 @@ contract UniswapV3Factory is IUniswapV3PoolDeployer {
         // CREATE2 uses a custom salt to generate a contract address.
         // Factory uses CREATE2 when deploying Pool contracts so pools get unique and
         // deterministic addresses that can be computed in other contracts and off-chain apps.
-        // Specifically, for salt, Factory computes a hash keccak256(abi.encodePacked(tokenX, tokenY, tickSpacing))
+        // Specifically, for salt, Factory computes a hash keccak256(abi.encodePacked(tokenX, tokenY, fee))
         pool = address(
             new UniswapV3Pool{
-                salt: keccak256(abi.encodePacked(tokenX, tokenY, tickSpacing))
+                salt: keccak256(abi.encodePacked(tokenX, tokenY, fee))
             }()
         );
 
@@ -58,9 +60,9 @@ contract UniswapV3Factory is IUniswapV3PoolDeployer {
         delete parameters;
 
         // Need to save both in the map
-        pools[tokenX][tokenY][tickSpacing] = pool;
-        pools[tokenY][tokenX][tickSpacing] = pool;
+        pools[tokenX][tokenY][fee] = pool;
+        pools[tokenY][tokenX][fee] = pool;
 
-        emit PoolCreated(tokenX, tokenY, tickSpacing, pool);
+        emit PoolCreated(tokenX, tokenY, fee, pool);
     }
 }

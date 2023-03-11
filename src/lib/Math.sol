@@ -5,11 +5,12 @@ import "./FixedPoint96.sol";
 import "prb-math/PRBMath.sol";
 
 library Math {
-    /// @notice Calculates amount0 delta between two prices
+    /// @notice Calculates amount0 delta between two prices with roundUp option
     function calcAmount0Delta(
         uint160 sqrtPriceAX96,
         uint160 sqrtPriceBX96,
-        uint128 liquidity
+        uint128 liquidity,
+        bool roundUp
     ) internal pure returns (uint256 amount0) {
         // ensure we dont underflow when subtracting
         if (sqrtPriceAX96 > sqrtPriceBX96) {
@@ -18,34 +19,99 @@ library Math {
 
         require(sqrtPriceAX96 > 0);
 
+        uint256 numerator1 = uint256(liquidity) << FixedPoint96.RESOLUTION;
+        uint256 numerator2 = sqrtPriceBX96 - sqrtPriceAX96;
+
         // amount0(Δx) = L(sqrt(p(i_upper)) - sqrt(p(i_current))) /  sqrt(p(i_upper)) * sqrt(p(i_current))
         // Here we want two divisions because multiplication of prices can overflow
-        amount0 = divRoundingUp(
-            mulDivRoundingUp(
-                (uint256(liquidity) << FixedPoint96.RESOLUTION),
-                (sqrtPriceBX96 - sqrtPriceAX96),
-                sqrtPriceBX96
-            ),
-            sqrtPriceAX96
-        );
+        if (roundUp) {
+            amount0 = divRoundingUp(
+                mulDivRoundingUp(numerator1, numerator2, sqrtPriceBX96),
+                sqrtPriceAX96
+            );
+        } else {
+            amount0 =
+                PRBMath.mulDiv(numerator1, numerator2, sqrtPriceBX96) /
+                sqrtPriceAX96;
+        }
     }
 
+    /// @notice Calculates amount1 delta between two prices with roundUp option
     function calcAmount1Delta(
         uint160 sqrtPriceAX96,
         uint160 sqrtPriceBX96,
-        uint128 liquidity
+        uint128 liquidity,
+        bool roundUp
     ) internal pure returns (uint256 amount1) {
         // ensure we dont underflow when subtracting
         if (sqrtPriceAX96 > sqrtPriceBX96) {
             (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
         }
 
-        // // amount1(Δy) = L(sqrt(p(i_current)) - sqrt(p(i_lower)))
-        amount1 = mulDivRoundingUp(
-            liquidity,
-            (sqrtPriceBX96 - sqrtPriceAX96),
-            FixedPoint96.Q96
-        );
+        if (roundUp) {
+            // // amount1(Δy) = L(sqrt(p(i_current)) - sqrt(p(i_lower)))
+            amount1 = mulDivRoundingUp(
+                liquidity,
+                (sqrtPriceBX96 - sqrtPriceAX96),
+                FixedPoint96.Q96
+            );
+        } else {
+            amount1 = PRBMath.mulDiv(
+                liquidity,
+                (sqrtPriceBX96 - sqrtPriceAX96),
+                FixedPoint96.Q96
+            );
+        }
+    }
+
+    /// @notice Calculates amount0 delta between two prices
+    function calcAmount0Delta(
+        uint160 sqrtPriceAX96,
+        uint160 sqrtPriceBX96,
+        int128 liquidity
+    ) internal pure returns (int256 amount0) {
+        amount0 = liquidity < 0
+            ? -int256(
+                calcAmount0Delta(
+                    sqrtPriceAX96,
+                    sqrtPriceBX96,
+                    uint128(-liquidity),
+                    false
+                )
+            )
+            : int256(
+                calcAmount0Delta(
+                    sqrtPriceAX96,
+                    sqrtPriceBX96,
+                    uint128(liquidity),
+                    true
+                )
+            );
+    }
+
+    /// @notice Calculates amount1 delta between two prices
+    function calcAmount1Delta(
+        uint160 sqrtPriceAX96,
+        uint160 sqrtPriceBX96,
+        int128 liquidity
+    ) internal pure returns (int256 amount0) {
+        amount0 = liquidity < 0
+            ? -int256(
+                calcAmount1Delta(
+                    sqrtPriceAX96,
+                    sqrtPriceBX96,
+                    uint128(-liquidity),
+                    false
+                )
+            )
+            : int256(
+                calcAmount1Delta(
+                    sqrtPriceAX96,
+                    sqrtPriceBX96,
+                    uint128(liquidity),
+                    true
+                )
+            );
     }
 
     function getNextSqrtPriceFromInput(

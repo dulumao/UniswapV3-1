@@ -61,6 +61,7 @@ interface IUniswapV3Pool {
         uint256 amountCalculated;
         uint160 sqrtPriceX96;
         int24 tick;
+        uint24 feeGrowthGlobalX128;
         uint128 liquidity;
     }
 
@@ -72,6 +73,7 @@ interface IUniswapV3Pool {
         uint160 sqrtPriceNextX96;
         uint256 amountIn;
         uint256 amountOut;
+        uint256 feeAmount;
     }
 
     ////////////////////////////////////////////

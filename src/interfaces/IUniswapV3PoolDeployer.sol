@@ -5,7 +5,7 @@ interface IUniswapV3PoolDeployer {
     error PoolAlreadyExists();
     error ZeroAddressNotAllowed();
     error TokensMustBeDifferent();
-    error UnsupportedTickSpacing();
+    error UnsupportedFee();
 
     event PoolCreated(
         address indexed token0,
@@ -19,6 +19,7 @@ interface IUniswapV3PoolDeployer {
         address token0;
         address token1;
         uint24 tickSpacing;
+        uint24 fee;
     }
 
     function parameters()
@@ -27,6 +28,7 @@ interface IUniswapV3PoolDeployer {
             address factory,
             address token0,
             address token1,
-            uint24 tickSpacing
+            uint24 tickSpacing,
+            uint24 fee
         );
 }

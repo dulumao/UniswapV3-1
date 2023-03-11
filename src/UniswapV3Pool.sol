@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.14;
 
+import "prb-math/PRBMath.sol";
+
 import "./interfaces/IERC20.sol";
 import "./interfaces/IUniswapV3MintCallback.sol";
 import "./interfaces/IUniswapV3SwapCallback.sol";
@@ -8,6 +10,7 @@ import "./interfaces/IUniswapV3FlashCallback.sol";
 import "./interfaces/IUniswapV3Pool.sol";
 import "./interfaces/IUniswapV3PoolDeployer.sol";
 
+import "./lib/FixedPoint128.sol";
 import "./lib/LiquidityMath.sol";
 import "./lib/Math.sol";
 import "./lib/Position.sol";
@@ -32,11 +35,14 @@ contract UniswapV3Pool is IUniswapV3Pool {
     // int24 internal constant MIN_TICK = -887272;
     // int24 internal constant MAX_TICK = -MIN_TICK;
 
-    // Pool tokens, immutable
+    // Pool tokens, immutable variables
     address public immutable factory;
     address public immutable token0;
     address public immutable token1;
     uint24 public immutable tickSpacing;
+    uint24 public immutable fee;
+    uint24 public feeGrowthGlobal0X128;
+    uint24 public feeGrowthGlobal1X128;
 
     // We need to track the current price and the related tick.
     // We’ll store them in one storage slot to optimize gas consumption
@@ -53,7 +59,7 @@ contract UniswapV3Pool is IUniswapV3Pool {
     mapping(int16 => uint256) public tickBitmap;
 
     constructor() {
-        (factory, token0, token1, tickSpacing) = IUniswapV3PoolDeployer(
+        (factory, token0, token1, tickSpacing, fee) = IUniswapV3PoolDeployer(
             msg.sender
         ).parameters();
     }
@@ -203,6 +209,9 @@ contract UniswapV3Pool is IUniswapV3Pool {
             amountCalculated: 0,
             sqrtPriceX96: slot0_.sqrtPriceX96,
             tick: slot0_.tick,
+            feeGrowthGlobalX128: zeroForOne
+                ? feeGrowthGlobal0X128
+                : feeGrowthGlobal1X128,
             liquidity: _liquidity
         });
 
@@ -225,27 +234,53 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
             step.sqrtPriceNextX96 = TickMath.getSqrtRatioAtTick(step.nextTick);
 
-            (state.sqrtPriceX96, step.amountIn, step.amountOut) = SwapMath
-                .computeSwapStep(
-                    state.sqrtPriceX96,
-                    // check if sqrtPriceNextX96 exceed sqrtPriceLimitX96
-                    (
-                        zeroForOne // (sqrtPrice is descreased)
-                            ? step.sqrtPriceNextX96 < sqrtPriceLimitX96
-                            : step.sqrtPriceNextX96 > sqrtPriceLimitX96
-                    )
-                        ? sqrtPriceLimitX96
-                        : step.sqrtPriceNextX96,
-                    state.liquidity,
-                    state.amountSpecifiedRemaining
-                );
+            (
+                state.sqrtPriceX96,
+                step.amountIn,
+                step.amountOut,
+                step.feeAmount
+            ) = SwapMath.computeSwapStep(
+                state.sqrtPriceX96,
+                // check if sqrtPriceNextX96 exceed sqrtPriceLimitX96
+                (
+                    zeroForOne // (sqrtPrice is descreased)
+                        ? step.sqrtPriceNextX96 < sqrtPriceLimitX96
+                        : step.sqrtPriceNextX96 > sqrtPriceLimitX96
+                )
+                    ? sqrtPriceLimitX96
+                    : step.sqrtPriceNextX96,
+                state.liquidity,
+                state.amountSpecifiedRemaining,
+                fee
+            );
 
-            state.amountSpecifiedRemaining -= step.amountIn;
+            state.amountSpecifiedRemaining -= step.amountIn + step.feeAmount;
             state.amountCalculated += step.amountOut;
+
+            if (state.liquidity > 0) {
+                // adjust accrued fees by the amount of liquidity to later distribute fees among liquidity providers in a fair way
+                state.feeGrowthGlobalX128 += PRBMath.mulDiv(
+                    step.feeAmount,
+                    FixedPoint128.Q128,
+                    state.liquidity
+                );
+            }
 
             // current price is reaching a boundary of the price range
             if (state.sqrtPriceX96 == step.sqrtPriceNextX96) {
-                int128 liquidityDelta = ticks.cross(step.nextTick);
+                int128 liquidityDelta = ticks.cross(
+                    step.nextTick,
+                    (
+                        zeroForOne
+                            ? state.feeGrowthGlobalX128
+                            : feeGrowthGlobal0X128
+                    ),
+                    (
+                        zeroForOne
+                            ? feeGrowthGlobal1X128
+                            : state.feeGrowthGlobalX128
+                    )
+                );
 
                 // By convention, crossing a tick means crossing it from left to right.
                 // Thus, crossing lower ticks always adds liquidity and crossing upper ticks always removes it.
@@ -290,6 +325,12 @@ contract UniswapV3Pool is IUniswapV3Pool {
         // need to update global contract liquidity when crossing a tick
         if (_liquidity != state.liquidity) {
             liquidity = state.liquidity;
+        }
+
+        if (zeroForOne) {
+            feeGrowthGlobal0X128 = state.feeGrowthGlobalX128;
+        } else {
+            feeGrowthGlobal1X128 = state.feeGrowthGlobalX128;
         }
 
         (amount0, amount1) = zeroForOne
