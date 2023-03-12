@@ -5,6 +5,14 @@ pragma solidity >=0.5.0;
 /// @notice Computes sqrt price for ticks of size 1.0001, i.e. sqrt(1.0001^tick) as fixed point Q64.96 numbers. Supports
 /// prices between 2**-128 and 2**128
 library TickMath {
+    // Each tick has an index i and corresponds to a certain price p(i) = 1.0001^i
+    // Taking powers of 1.0001 has a desi desirable property: the difference between two adjacent ticks is 0.01% or 1 basis point.
+    // Ticks are integers that can be positive and negative and, of course, they’re not infinite.
+    // Uniswap V3 stores sqrt(P) as a fixed point Q64.96 number, which is a rational number that
+    // uses 64 bits for the integer part and 96 bits for the fractional part.
+    // Thus, prices (equal to the square of P) are within the range [2^-128, 2^128].
+    // And ticks are within the range [−887272,887272]
+
     /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
     int24 internal constant MIN_TICK = -887272;
     /// @dev The maximum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**128

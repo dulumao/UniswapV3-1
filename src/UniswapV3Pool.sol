@@ -18,22 +18,14 @@ import "./lib/SwapMath.sol";
 import "./lib/Tick.sol";
 import "./lib/TickBitmap.sol";
 import "./lib/TickMath.sol";
+import "./lib/Oracle.sol";
 
 contract UniswapV3Pool is IUniswapV3Pool {
+    using Oracle for Oracle.Observation[65535];
     using Tick for mapping(int24 => Tick.Info);
     using TickBitmap for mapping(int16 => uint256);
     using Position for mapping(bytes32 => Position.Info);
     using Position for Position.Info;
-
-    // // Each tick has an index i and corresponds to a certain price p(i) = 1.0001^i
-    // // Taking powers of 1.0001 has a desi desirable property: the difference between two adjacent ticks is 0.01% or 1 basis point.
-    // // Ticks are integers that can be positive and negative and, of course, they’re not infinite.
-    // // Uniswap V3 stores sqrt(P) as a fixed point Q64.96 number, which is a rational number that
-    // // uses 64 bits for the integer part and 96 bits for the fractional part.
-    // // Thus, prices (equal to the square of P) are within the range [2^-128, 2^128].
-    // // And ticks are within the range [−887272,887272]
-    // int24 internal constant MIN_TICK = -887272;
-    // int24 internal constant MAX_TICK = -MIN_TICK;
 
     // Pool tokens, immutable variables
     address public immutable factory;
@@ -59,6 +51,13 @@ contract UniswapV3Pool is IUniswapV3Pool {
     // Tick bit mapping
     mapping(int16 => uint256) public tickBitmap;
 
+    /// @dev Observations are stored in a fixed-length array that expands when a new observation is saved and observationCardinalityNext
+    /// is greater than observationCardinality (which signals that cardinality can be expanded).
+    /// If the array cannot be expanded (next cardinality value equals to the current one), oldest observations get overwritten
+    /// Since storing that many instances of Observation requires a lot of gas (someone would have to pay for writing each of them to contract’s storage),
+    /// a pool by default can store only 1 observation, which gets overwritten each time a new price is recorded.
+    Oracle.Observation[65535] public observations;
+
     constructor() {
         (factory, token0, token1, tickSpacing, fee) = IUniswapV3PoolDeployer(
             msg.sender
@@ -70,7 +69,17 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
 
-        slot0 = Slot0({sqrtPriceX96: sqrtPriceX96, tick: tick});
+        (uint16 cardinality, uint16 cardinalityNext) = observations.initialize(
+            _blockTimestamp()
+        );
+
+        slot0 = Slot0({
+            sqrtPriceX96: sqrtPriceX96,
+            tick: tick,
+            observationIndex: 0,
+            observationCardinality: cardinality,
+            observationCardinalityNext: cardinalityNext
+        });
     }
 
     function mint(
@@ -351,9 +360,37 @@ contract UniswapV3Pool is IUniswapV3Pool {
             }
         }
 
-        // need to update the current tick and sqrtP of contract state
+        /// @dev Need to update the current states of contract state.
+        /// @dev Notice that the tick that’s observed here is slot0_.tick (not state.tick), i.e. the price before the swap! It’s updated with a new price in the next statement.
+        /// This is the price manipulation mitigation: Uniswap tracks prices before the first trade in the block (slot0_.tick) and after the last trade in the previous block (state.tick).
+        /// @dev Each observation is identified by _blockTimestamp(). This means that if there’s already an observation for the current block,
+        /// a price is not recorded. If there are no observations for the current block (i.e. this is the first swap in the block), a price is recorded.
+        /// This is part of the price manipulation mitigation mechanism.
         if (state.tick != slot0_.tick) {
-            (slot0.sqrtPriceX96, slot0.tick) = (state.sqrtPriceX96, state.tick);
+            (
+                uint16 observationIndex,
+                uint16 observationCardinality
+            ) = observations.write(
+                    slot0_.observationIndex,
+                    _blockTimestamp(),
+                    slot0_.tick,
+                    slot0_.observationCardinality,
+                    slot0_.observationCardinalityNext
+                );
+
+            (
+                slot0.sqrtPriceX96,
+                slot0.tick,
+                slot0.observationIndex,
+                slot0.observationCardinality
+            ) = (
+                state.sqrtPriceX96,
+                state.tick,
+                observationIndex,
+                observationCardinality
+            );
+        } else {
+            slot0.sqrtPriceX96 = state.sqrtPriceX96;
         }
 
         // need to update global contract liquidity when crossing a tick
@@ -453,6 +490,24 @@ contract UniswapV3Pool is IUniswapV3Pool {
         }
 
         emit Flash(msg.sender, amount0, amount1);
+    }
+
+    function increaseObservationCardinalityNext(
+        uint16 observationCardinalityNext
+    ) public {
+        uint16 observationCardinalityNextOld = slot0.observationCardinalityNext;
+        uint16 observationCardinalityNextNew = observations.grow(
+            observationCardinalityNextOld,
+            observationCardinalityNext
+        );
+
+        if (observationCardinalityNextNew != observationCardinalityNextOld) {
+            slot0.observationCardinalityNext = observationCardinalityNextNew;
+            emit IncreaseObservationCardinalityNext(
+                observationCardinalityNextOld,
+                observationCardinalityNextNew
+            );
+        }
     }
 
     function _modifyPosition(ModifyPositionParams memory params)
@@ -558,5 +613,9 @@ contract UniswapV3Pool is IUniswapV3Pool {
 
     function balance1() internal returns (uint256 balance) {
         balance = IERC20(token1).balanceOf(address(this));
+    }
+
+    function _blockTimestamp() internal view returns (uint32 timestamp) {
+        timestamp = uint32(block.timestamp);
     }
 }

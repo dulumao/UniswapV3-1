@@ -56,6 +56,11 @@ interface IUniswapV3Pool {
 
     event Flash(address indexed recipient, uint256 amount0, uint256 amount1);
 
+    event IncreaseObservationCardinalityNext(
+        uint16 observationCardinalityNextOld,
+        uint16 observationCardinalityNextNew
+    );
+
     ////////////////////////////////////////////
     ///////////////   Structs    /////////////
     ////////////////////////////////////////////
@@ -67,11 +72,18 @@ interface IUniswapV3Pool {
         address payer;
     }
 
+    /// @dev Track the current state of the pool
+    /// @param sqrtPriceX96 current sqrt(P)
+    /// @param tick current tick
+    /// @param observationIndex Most recent observation index, tracks the index of the most recent observation
+    /// @param observationCardinality Maximum number of observations, tracks the number of activated observations
+    /// @param observationCardinalityNext Next maximum number of observations, track the next cardinality the array of observations can expand to
     struct Slot0 {
-        // current sqrt(P)
         uint160 sqrtPriceX96;
-        // current tick
         int24 tick;
+        uint16 observationIndex;
+        uint16 observationCardinality;
+        uint16 observationCardinalityNext;
     }
 
     // maintain current swap's state
@@ -105,7 +117,16 @@ interface IUniswapV3Pool {
     ////////////////////////////////////////////
     ///////////////   Functions    /////////////
     ////////////////////////////////////////////
-    function slot0() external view returns (uint160 sqrtPriceX96, int24 tick);
+    function slot0()
+        external
+        view
+        returns (
+            uint160 sqrtPriceX96,
+            int24 tick,
+            uint16 observationIndex,
+            uint16 observationCardinality,
+            uint16 observationCardinalityNext
+        );
 
     function factory() external view returns (address);
 
@@ -114,6 +135,19 @@ interface IUniswapV3Pool {
     function token1() external view returns (address);
 
     function tickSpacing() external view returns (uint24);
+
+    function fee() external view returns (uint24);
+
+    function positions(bytes32 key)
+        external
+        view
+        returns (
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        );
 
     function mint(
         address owner,
