@@ -11,6 +11,7 @@ interface IUniswapV3Pool {
     error NotEnoughLiquidity();
     error InvalidPriceLimit();
     error AlreadyInitialized();
+    error FlashLoanNotPaid();
 
     ////////////////////////////////////////////
     ///////////////    Events    ///////////////
@@ -21,6 +22,24 @@ interface IUniswapV3Pool {
         int24 indexed tickLower,
         int24 indexed tickUpper,
         uint128 amount,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event Burn(
+        address indexed owner,
+        int24 indexed tickLower,
+        int24 indexed tickUpper,
+        uint128 amount,
+        uint256 amount0,
+        uint256 amount1
+    );
+
+    event Collect(
+        address indexed owner,
+        address recipient,
+        int24 indexed tickLower,
+        int24 indexed tickUpper,
         uint256 amount0,
         uint256 amount1
     );
@@ -61,7 +80,7 @@ interface IUniswapV3Pool {
         uint256 amountCalculated;
         uint160 sqrtPriceX96;
         int24 tick;
-        uint24 feeGrowthGlobalX128;
+        uint256 feeGrowthGlobalX128;
         uint128 liquidity;
     }
 
@@ -74,6 +93,13 @@ interface IUniswapV3Pool {
         uint256 amountIn;
         uint256 amountOut;
         uint256 feeAmount;
+    }
+
+    struct ModifyPositionParams {
+        address owner;
+        int24 lowerTick;
+        int24 upperTick;
+        int128 liquidityDelta;
     }
 
     ////////////////////////////////////////////
