@@ -18,6 +18,35 @@ contract UniswapV3Manager is IUniswapV3Manager {
         factory = factory_;
     }
 
+    function getPosition(GetPositionParams calldata params)
+        public
+        view
+        returns (
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        IUniswapV3Pool pool = getPool(params.tokenA, params.tokenB, params.fee);
+        (
+            liquidity,
+            feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128,
+            tokensOwed0,
+            tokensOwed1
+        ) = pool.positions(
+            keccak256(
+                abi.encodePacked(
+                    params.owner,
+                    params.lowerTick,
+                    params.upperTick
+                )
+            )
+        );
+    }
+
     // Adding liquidity also requires slippage protection. This comes from the fact that price
     // cannot be change when adding liquidity (liquidity must be proportional to current price),
     // thus liquidity providers also suffer from slippage.
@@ -31,11 +60,11 @@ contract UniswapV3Manager is IUniswapV3Manager {
             factory,
             params.tokenA,
             params.tokenB,
-            params.tickSpacing
+            params.fee
         );
         IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
 
-        (uint160 sqrtPriceX96, ) = pool.slot0();
+        (uint160 sqrtPriceX96, , , , ) = pool.slot0();
 
         // calculate lower sqrtPrice and upper sqrtPrice
         uint160 sqrtPriceLowerX96 = TickMath.getSqrtRatioAtTick(
@@ -84,7 +113,7 @@ contract UniswapV3Manager is IUniswapV3Manager {
             SwapCallbackData({
                 path: abi.encodePacked(
                     params.tokenIn,
-                    params.tickSpacing,
+                    params.fee,
                     params.tokenOut
                 ),
                 payer: msg.sender
@@ -160,13 +189,13 @@ contract UniswapV3Manager is IUniswapV3Manager {
     function getPool(
         address token0,
         address token1,
-        uint24 tickSpacing
+        uint24 fee
     ) internal view returns (IUniswapV3Pool pool) {
         (token0, token1) = token0 < token1
             ? (token0, token1)
             : (token1, token0);
         pool = IUniswapV3Pool(
-            PoolAddress.computeAddress(factory, token0, token1, tickSpacing)
+            PoolAddress.computeAddress(factory, token0, token1, fee)
         );
     }
 
