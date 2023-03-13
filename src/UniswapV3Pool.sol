@@ -492,6 +492,21 @@ contract UniswapV3Pool is IUniswapV3Pool {
         emit Flash(msg.sender, amount0, amount1);
     }
 
+    function observe(uint32[] calldata secondsAgos)
+        public
+        view
+        returns (int56[] memory tickCummulatives)
+    {
+        return
+            observations.observe(
+                _blockTimestamp(),
+                secondsAgos,
+                slot0.tick,
+                slot0.observationIndex,
+                slot0.observationCardinality
+            );
+    }
+
     function increaseObservationCardinalityNext(
         uint16 observationCardinalityNext
     ) public {
