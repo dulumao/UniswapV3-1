@@ -2,7 +2,7 @@
 pragma solidity ^0.8.14;
 
 import {Test, stdError} from "forge-std/Test.sol";
-import "./UniswapV3Manager.Utils.t.sol";
+import "./utils/UniswapV3Manager.Utils.sol";
 
 contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
     ERC20Mintable weth;
@@ -235,7 +235,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                     currentPrice: 5000,
                     mints: mintParams(
                         mintParams(4545, 5500, 1 ether, 5000 ether),
-                        mintParams(4000, 6250, (1 * 75) / 100 ether, (5000 * 75) / 100 ether),
+                        mintParams(4000, 6250, (1 * 75) / 100 ether, (5000 * 75) / 100 ether)
                     ),
                     transferInMintCallback: true,
                     transferInSwapCallback: true,

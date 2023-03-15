@@ -2,8 +2,8 @@
 pragma solidity ^0.8.14;
 
 import "forge-std/Test.sol";
-import "./ERC20Mintable.sol";
-import "./TestUtils.sol";
+import "./utils/ERC20Mintable.sol";
+import "./utils/TestUtils.sol";
 
 import "../src/interfaces/IUniswapV3Pool.sol";
 import "../src/UniswapV3Factory.sol";

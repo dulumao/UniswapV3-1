@@ -5,10 +5,10 @@ import "forge-std/Test.sol";
 import "./TestUtils.sol";
 import "./ERC20Mintable.sol";
 
-import "../src/lib/LiquidityMath.sol";
-import "../src/interfaces/IUniswapV3Manager.sol";
-import "../src/UniswapV3Factory.sol";
-import "../src/UniswapV3Manager.sol";
+import "../../src/lib/LiquidityMath.sol";
+import "../../src/interfaces/IUniswapV3Manager.sol";
+import "../../src/UniswapV3Factory.sol";
+import "../../src/UniswapV3Manager.sol";
 
 contract UniswapV3ManagerUtils is Test, TestUtils {
     struct PoolParams {
