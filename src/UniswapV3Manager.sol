@@ -18,7 +18,9 @@ contract UniswapV3Manager is IUniswapV3Manager {
         factory = factory_;
     }
 
-    function getPosition(GetPositionParams calldata params)
+    function getPosition(
+        GetPositionParams calldata params
+    )
         public
         view
         returns (
@@ -52,10 +54,9 @@ contract UniswapV3Manager is IUniswapV3Manager {
     // thus liquidity providers also suffer from slippage.
     // To implement slippage protection in the mint function, we can simply check the amounts of
     // tokens taken by Pool and compare them to some minimal amounts chosen by user.
-    function mint(MintParams calldata params)
-        public
-        returns (uint256 amount0, uint256 amount1)
-    {
+    function mint(
+        MintParams calldata params
+    ) public returns (uint256 amount0, uint256 amount1) {
         address poolAddress = PoolAddress.computeAddress(
             factory,
             params.tokenA,
@@ -102,10 +103,9 @@ contract UniswapV3Manager is IUniswapV3Manager {
         }
     }
 
-    function swapSingle(SwapSingleParams calldata params)
-        public
-        returns (uint256 amountOut)
-    {
+    function swapSingle(
+        SwapSingleParams calldata params
+    ) public returns (uint256 amountOut) {
         amountOut = _swap(
             params.amountIn,
             msg.sender,

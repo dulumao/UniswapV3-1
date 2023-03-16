@@ -55,7 +55,7 @@ contract UniswapV3ManagerUtils is Test, TestUtils {
             params.currentPrice
         );
 
-        if (params.mintLiqudity) {
+        if (params.mintLiquidity) {
             params.token0.approve(
                 address(params.manager),
                 params.token0Balance
