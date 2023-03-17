@@ -696,29 +696,25 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
     }
 
     function testCollectMoreThanAvalaible() public {
-        (
-            LiquidityRange[] memory liquidity,
-            uint256 poolBalance0,
-            uint256 poolBalance1
-        ) = setupPool(
-                PoolParams({
-                    balances: [uint256(1 ether), 5000 ether],
-                    currentPrice: 5000,
-                    liquidity: liquidityRanges(
-                        liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
-                    ),
-                    transferInMintCallback: true,
-                    transferInSwapCallback: true,
-                    mintLiquidity: true
-                })
-            );
+        (LiquidityRange[] memory liquidity, , ) = setupPool(
+            PoolParams({
+                balances: [uint256(1 ether), 5000 ether],
+                currentPrice: 5000,
+                liquidity: liquidityRanges(
+                    liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
+                ),
+                transferInMintCallback: true,
+                transferInSwapCallback: true,
+                mintLiquidity: true
+            })
+        );
         LiquidityRange memory liq = liquidity[0];
 
         uint256 swapAmount = 42 ether; // 42 USDC
         usdc.mint(address(this), swapAmount);
         usdc.approve(address(this), swapAmount);
 
-        (int256 swapAmount0, int256 swapAmount1) = pool.swap(
+        pool.swap(
             address(this),
             false,
             swapAmount,
@@ -793,52 +789,53 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
             abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
         );
 
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
-            positionKey
-        );
+        uint128[] memory tokensOwed = new uint128[](2);
+        (, , , tokensOwed[0], tokensOwed[1]) = pool.positions(positionKey);
 
-        (uint128 expectedTokensOwed0, uint128 expectedTokensOwed1) = (
+        uint128[] memory expectedTokensOwed = new uint128[](2);
+        (expectedTokensOwed[0], expectedTokensOwed[1]) = (
             0.489353377248529488 ether,
             2521.062999999999999996 ether
         );
 
         assertEq(
-            tokensOwed0,
-            expectedTokensOwed0,
+            tokensOwed[0],
+            expectedTokensOwed[0],
             "incorrect tokens owed for token0"
         );
         assertEq(
-            tokensOwed1,
-            expectedTokensOwed1,
+            tokensOwed[1],
+            expectedTokensOwed[1],
             "incorrect tokens owed for token1"
         );
 
-        (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
+        uint128[] memory collectedAmounts = new uint128[](2);
+        (collectedAmounts[0], collectedAmounts[1]) = pool.collect(
             address(this),
             liq.lowerTick,
             liq.upperTick,
-            tokensOwed0,
-            tokensOwed1
+            tokensOwed[0],
+            tokensOwed[1]
         );
 
         assertEq(
-            amountCollected0,
-            tokensOwed0,
+            collectedAmounts[0],
+            tokensOwed[0],
             "incorrect collected amount for token0"
         );
         assertEq(
-            amountCollected1,
-            tokensOwed1,
+            collectedAmounts[1],
+            tokensOwed[1],
             "incorrect collected amount for token1"
         );
         assertEq(
             weth.balanceOf(address(pool)),
-            uint256(int256(poolBalance0) + swapAmount0) - tokensOwed0,
+            uint256(int256(poolBalance0) + swapAmount0) - tokensOwed[0],
             "incorrect pool balance of token0 after collect"
         );
         assertEq(
             usdc.balanceOf(address(pool)),
-            uint256(int256(poolBalance1) + swapAmount1) - tokensOwed1,
+            uint256(int256(poolBalance1) + swapAmount1) - tokensOwed[1],
             "incorrect pool balance of token1 after collect"
         );
     }
