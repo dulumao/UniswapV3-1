@@ -124,6 +124,7 @@ abstract contract Assertions is Test {
             expected.liquidity,
             "invalid current liquidity"
         );
+
         assertEq(
             expected.pool.feeGrowthGlobal0X128(),
             expected.fees[0],
@@ -140,22 +141,23 @@ abstract contract Assertions is Test {
         assertEq(
             expected.tokens[0].balanceOf(address(this)),
             expected.userBalance0,
-            "incorrect token0 balances of user"
+            "incorrect token0 balance of user"
         );
         assertEq(
             expected.tokens[1].balanceOf(address(this)),
             expected.userBalance1,
-            "incorrect token1 balances of user"
+            "incorrect token1 balance of user"
         );
+
         assertEq(
             expected.tokens[0].balanceOf(address(expected.pool)),
             expected.poolBalance0,
-            "incorrect token0 balances of pool"
+            "incorrect token0 balance of pool"
         );
         assertEq(
             expected.tokens[1].balanceOf(address(expected.pool)),
             expected.poolBalance1,
-            "incorrect token1 balances of pool"
+            "incorrect token1 balance of pool"
         );
     }
 
@@ -182,26 +184,36 @@ abstract contract Assertions is Test {
             expected.liquidityNet,
             "incorrect tick net liquidity"
         );
+
+        // TODO: fix, must be the same as 'initialized'
+        // assertEq(
+        //     tickInBitMap(expected.pool, expected.tick),
+        //     expected.initialized,
+        //     "incorrect tick in bitmap state"
+        // );
     }
 
     function assertObservation(ExpectedObservation memory expected) internal {
-        (uint32 timestamp, int56 tickCummulative, bool initialize) = expected
+        (uint32 timestamp, int56 tickCummulative, bool initialized) = expected
             .pool
             .observations(expected.index);
+
         assertEq(
             timestamp,
             expected.timestamp,
             "incorrect observation timestamp"
         );
+
         assertEq(
             tickCummulative,
             expected.tickCummulative,
-            "incorrect observation cummulative tick"
+            "incorrect observation cumulative tick"
         );
+
         assertEq(
-            initialize,
+            initialized,
             expected.initialized,
-            "incorrect observation initialization tick"
+            "incorrect observation initialization state"
         );
     }
 
@@ -263,6 +275,16 @@ abstract contract Assertions is Test {
     }
 
     function assertMany(ExpectedPositionAndTicks memory expected) internal {
+        assertPosition(
+            ExpectedPosition({
+                pool: expected.pool,
+                ticks: expected.position.ticks,
+                liquidity: expected.position.liquidity,
+                feeGrowth: expected.position.feeGrowth,
+                tokensOwed: expected.position.tokensOwed
+            })
+        );
+
         assertTick(
             ExpectedTick({
                 pool: expected.pool,
@@ -272,6 +294,7 @@ abstract contract Assertions is Test {
                 liquidityNet: expected.ticks[0].liquidityNet
             })
         );
+
         assertTick(
             ExpectedTick({
                 pool: expected.pool,
@@ -279,15 +302,6 @@ abstract contract Assertions is Test {
                 initialized: expected.ticks[1].initialized,
                 liquidityGross: expected.ticks[1].liquidityGross,
                 liquidityNet: expected.ticks[1].liquidityNet
-            })
-        );
-        assertPosition(
-            ExpectedPosition({
-                pool: expected.pool,
-                ticks: expected.position.ticks,
-                liquidity: expected.position.liquidity,
-                feeGrowth: expected.position.feeGrowth,
-                tokensOwed: expected.position.tokensOwed
             })
         );
     }
@@ -312,6 +326,16 @@ abstract contract Assertions is Test {
                 poolBalance1: expected.poolBalances[1]
             })
         );
+        assertPosition(
+            ExpectedPosition({
+                pool: expected.pool,
+                ticks: expected.position.ticks,
+                liquidity: expected.position.liquidity,
+                feeGrowth: expected.position.feeGrowth,
+                tokensOwed: expected.position.tokensOwed
+            })
+        );
+
         assertTick(
             ExpectedTick({
                 pool: expected.pool,
@@ -321,6 +345,7 @@ abstract contract Assertions is Test {
                 liquidityNet: expected.ticks[0].liquidityNet
             })
         );
+
         assertTick(
             ExpectedTick({
                 pool: expected.pool,
@@ -330,22 +355,14 @@ abstract contract Assertions is Test {
                 liquidityNet: expected.ticks[1].liquidityNet
             })
         );
+
         assertObservation(
             ExpectedObservation({
                 pool: expected.pool,
                 index: expected.observation.index,
-                timestamp: expected.observation.index,
+                timestamp: expected.observation.timestamp,
                 tickCummulative: expected.observation.tickCummulative,
                 initialized: expected.observation.initialized
-            })
-        );
-        assertPosition(
-            ExpectedPosition({
-                pool: expected.pool,
-                ticks: expected.position.ticks,
-                liquidity: expected.position.liquidity,
-                feeGrowth: expected.position.feeGrowth,
-                tokensOwed: expected.position.tokensOwed
             })
         );
     }

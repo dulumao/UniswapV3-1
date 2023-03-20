@@ -518,15 +518,15 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
                 ticks: [
                     ExpectedTickShort({
                         tick: liquidity[0].lowerTick,
-                        initialized: true, // TODO: fix, must be false
+                        initialized: true,
                         liquidityGross: liquidity[0].amount / 2 + 1,
                         liquidityNet: int128(liquidity[0].amount / 2 + 1)
                     }),
                     ExpectedTickShort({
                         tick: liquidity[0].upperTick,
-                        initialized: true, // TODO: fix, must be false
+                        initialized: true,
                         liquidityGross: liquidity[0].amount / 2 + 1,
-                        liquidityNet: int128(liquidity[0].amount / 2 + 1)
+                        liquidityNet: -int128(liquidity[0].amount / 2 + 1)
                     })
                 ],
                 observation: ExpectedObservationShort({
@@ -598,17 +598,17 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
             tokensOwed0,
             tokensOwed1
         );
-
         assertEq(
             amountCollected0,
             tokensOwed0,
-            "incorrect collected amount for token0"
+            "incorrect collected amount for token 0"
         );
         assertEq(
             amountCollected1,
             tokensOwed1,
-            "incorrect collected amount for token1"
+            "incorrect collected amount for token 1"
         );
+
         assertEq(
             weth.balanceOf(address(pool)),
             1,

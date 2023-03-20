@@ -28,54 +28,9 @@ contract UniswapV3ManagerUtils is Test, TestUtils {
         uint256 token1Balance;
         uint256 currentPrice;
         IUniswapV3Manager.MintParams[] mints;
+        bool transferInMintCallback;
+        bool transferInSwapCallback;
         bool mintLiquidity;
-        UniswapV3Factory factory;
-        UniswapV3Manager manager;
-    }
-
-    function setupPool(
-        PoolParamsFull memory params
-    )
-        internal
-        returns (
-            UniswapV3Pool pool_,
-            IUniswapV3Manager.MintParams[] memory mint_,
-            uint256 poolBalance0,
-            uint256 poolBalance1
-        )
-    {
-        params.token0.mint(address(this), params.token0Balance);
-        params.token1.mint(address(this), params.token1Balance);
-
-        pool_ = deployPool(
-            params.factory,
-            address(params.token0),
-            address(params.token1),
-            3000,
-            params.currentPrice
-        );
-
-        if (params.mintLiquidity) {
-            params.token0.approve(
-                address(params.manager),
-                params.token0Balance
-            );
-            params.token1.approve(
-                address(params.manager),
-                params.token1Balance
-            );
-
-            uint256 poolBalance0Tmp;
-            uint256 poolBalance1Tmp;
-            for (uint256 i = 0; i < params.mints.length; i++) {
-                (poolBalance0Tmp, poolBalance1Tmp) = params.manager.mint(
-                    params.mints[i]
-                );
-                poolBalance0 += poolBalance0Tmp;
-                poolBalance1 += poolBalance1Tmp;
-            }
-        }
-        mint_ = params.mints;
     }
 
     function mintParams(

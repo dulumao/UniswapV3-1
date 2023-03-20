@@ -138,7 +138,9 @@ interface IUniswapV3Pool {
 
     function fee() external view returns (uint24);
 
-    function positions(bytes32 key)
+    function positions(
+        bytes32 key
+    )
         external
         view
         returns (

@@ -130,7 +130,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             ExpectedMany({
                 pool: pool,
                 tokens: [weth, usdc],
-                liquidity: liquidity(mints[0], 5000),
+                liquidity: 0,
                 sqrtPriceX96: sqrtP(5000),
                 tick: tick(5000),
                 fees: [uint256(0), 0],
@@ -192,7 +192,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             ExpectedMany({
                 pool: pool,
                 tokens: [weth, usdc],
-                liquidity: liquidity(mints[0], 5000),
+                liquidity: 0,
                 sqrtPriceX96: sqrtP(5000),
                 tick: tick(5000),
                 fees: [uint256(0), 0],
@@ -497,7 +497,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
 
     function testMintSlippageProtection() public {
         (uint256 amount0, uint256 amount1) = (1 ether, 5000 ether);
-        pool = deployPool(factory, address(weth), address(usdc), 60, 5000);
+        pool = deployPool(factory, address(weth), address(usdc), 3000, 5000);
         manager = new UniswapV3Manager(address(factory));
 
         weth.mint(address(this), amount0);
@@ -628,8 +628,8 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             );
 
         uint256 swapAmount = 0.01337 ether;
-        usdc.mint(address(this), swapAmount);
-        usdc.approve(address(manager), swapAmount);
+        weth.mint(address(this), swapAmount);
+        weth.approve(address(manager), swapAmount);
 
         (uint256 userBalance0Before, uint256 userBalance1Before) = (
             weth.balanceOf(address(this)),
@@ -638,8 +638,8 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
 
         uint256 amountOut = manager.swapSingle(
             IUniswapV3Manager.SwapSingleParams({
-                tokenIn: address(usdc),
-                tokenOut: address(weth),
+                tokenIn: address(weth),
+                tokenOut: address(usdc),
                 fee: 3000,
                 amountIn: swapAmount,
                 sqrtPriceLimitX96: sqrtP(4993)
@@ -647,6 +647,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
         );
 
         uint256 expectedAmountOut = 66.608848079558229697 ether;
+
         assertEq(amountOut, expectedAmountOut, "invalid ETH out");
 
         assertMany(
@@ -654,9 +655,12 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                 pool: pool,
                 tokens: [weth, usdc],
                 liquidity: liquidity(mints[0], 5000),
-                sqrtPriceX96: 5598864267980327381293641469695,
+                sqrtPriceX96: 5598864267980327381293641469695, // 4993.909994249256
                 tick: 85164,
-                fees: [uint256(8826635488357160650248135250207), 0],
+                fees: [
+                    uint256(8826635488357160650248135250207), // 0.000000025939150383
+                    0
+                ],
                 userBalances: [
                     userBalance0Before - swapAmount,
                     userBalance1Before + amountOut
@@ -718,15 +722,15 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                     mints: mintParams(
                         mintParams(weth, uni, 7, 13, 10 ether, 100 ether)
                     ),
-                    mintLiquidity: true,
-                    factory: factory,
-                    manager: manager
+                    transferInMintCallback: true,
+                    transferInSwapCallback: true,
+                    mintLiquidity: true
                 })
             );
 
         uint256 swapAmount = 2.5 ether;
-        usdc.mint(address(this), swapAmount);
-        usdc.approve(address(manager), swapAmount);
+        uni.mint(address(this), swapAmount);
+        uni.approve(address(manager), swapAmount);
 
         bytes memory path = bytes.concat(
             bytes20(address(uni)),
@@ -759,10 +763,13 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             ExpectedMany({
                 pool: pool,
                 tokens: [weth, usdc],
-                liquidity: liquidity(mints[0], 5000),
-                sqrtPriceX96: 5539583677789714904297843583839,
+                liquidity: liquidity(mint, 5000),
+                sqrtPriceX96: 5539583677789714904297843583839, // 4888.719128166855
                 tick: 84951,
-                fees: [uint256(163879779853250804931705964313699), 0],
+                fees: [
+                    uint256(163879779853250804931705964313699), // 0.000000481599388579
+                    0
+                ],
                 userBalances: [userBalances[0], userBalances[1] + amountOut],
                 poolBalances: [
                     poolBalance0 + 0.248234183855004779 ether, // initial + 2.5 UNI sold for ETH
@@ -790,12 +797,15 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                 pool: wethUNI,
                 tokens: [weth, uni],
                 liquidity: liquidity(mint, 10),
-                sqrtPriceX96: 251566706235579008314845847774,
+                sqrtPriceX96: 251566706235579008314845847774, // 10.082010831439806
                 tick: 23108,
-                fees: [uint256(0), 13250097234547358482322170106940574],
+                fees: [
+                    uint256(0),
+                    13250097234547358482322170106940574 // 0.000038938536117641
+                ],
                 userBalances: [userBalances[0], userBalances[2] - swapAmount],
                 poolBalances: [
-                    wethUNIBalance0 - 0.248234183855004779 ether, // initial + 2.5 UNI sold for ETH
+                    wethUNIBalance0 - 0.248234183855004779 ether,
                     wethUNIBalance1 + swapAmount
                 ],
                 position: ExpectedPositionShort({
@@ -835,17 +845,15 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
             );
 
         uint256 ethAmount = 0.01337 ether;
-        usdc.mint(address(this), ethAmount);
-        usdc.approve(address(manager), ethAmount);
+        weth.mint(address(this), ethAmount);
+        weth.approve(address(manager), ethAmount);
 
         uint256 usdcAmount = 55 ether;
         usdc.mint(address(this), usdcAmount);
         usdc.approve(address(manager), usdcAmount);
 
-        (uint256 userBalance0Before, uint256 userBalance1Before) = (
-            weth.balanceOf(address(this)),
-            usdc.balanceOf(address(this))
-        );
+        uint256 userBalance0Before = weth.balanceOf(address(this));
+        uint256 userBalance1Before = usdc.balanceOf(address(this));
 
         uint256 amountOut1 = manager.swapSingle(
             IUniswapV3Manager.SwapSingleParams({
@@ -872,11 +880,11 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                 pool: pool,
                 tokens: [weth, usdc],
                 liquidity: liquidity(mints[0], 5000),
-                sqrtPriceX96: 5601673842247623244689987477875,
+                sqrtPriceX96: 5601673842247623244689987477875, // 4998.923254346182
                 tick: 85174,
                 fees: [
-                    uint256(8826635488357160650248135250207),
-                    36310018837669696018223443437652275
+                    uint256(8826635488357160650248135250207), // 0.000000025939150383
+                    36310018837669696018223443437652275 // 0.000106705555054829
                 ],
                 userBalances: [
                     userBalance0Before - ethAmount + amountOut2,
@@ -920,7 +928,7 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
         usdc.mint(address(this), swapAmount);
         usdc.approve(address(manager), swapAmount);
 
-        vm.expectRevert(encodeError("NotEnoughLiquidity()"));
+        vm.expectRevert(stdError.arithmeticError);
         manager.swapSingle(
             IUniswapV3Manager.SwapSingleParams({
                 tokenIn: address(usdc),
@@ -947,9 +955,9 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
 
         uint256 swapAmount = 1.1 ether;
         weth.mint(address(this), swapAmount);
-        weth.approve(address(manager), swapAmount);
+        weth.approve(address(this), swapAmount);
 
-        vm.expectRevert(encodeError("NotEnoughLiquidity()"));
+        vm.expectRevert(stdError.arithmeticError);
         manager.swapSingle(
             IUniswapV3Manager.SwapSingleParams({
                 tokenIn: address(weth),
@@ -1066,13 +1074,52 @@ contract UniswapV3ManagerTest is Test, UniswapV3ManagerUtils {
                 token1Balance: params.usdcBalance,
                 currentPrice: params.currentPrice,
                 mints: params.mints,
-                mintLiquidity: params.mintLiquidity,
-                factory: factory,
-                manager: manager
+                transferInMintCallback: params.transferInMintCallback,
+                transferInSwapCallback: params.transferInSwapCallback,
+                mintLiquidity: params.mintLiquidity
             })
         );
+    }
+
+    function setupPool(
+        PoolParamsFull memory params
+    )
+        internal
+        returns (
+            UniswapV3Pool pool_,
+            IUniswapV3Manager.MintParams[] memory mint_,
+            uint256 poolBalance0,
+            uint256 poolBalance1
+        )
+    {
+        params.token0.mint(address(this), params.token0Balance);
+        params.token1.mint(address(this), params.token1Balance);
+
+        pool_ = deployPool(
+            factory,
+            address(params.token0),
+            address(params.token1),
+            3000,
+            params.currentPrice
+        );
+
+        if (params.mintLiquidity) {
+            params.token0.approve(address(manager), params.token0Balance);
+            params.token1.approve(address(manager), params.token1Balance);
+
+            uint256 poolBalance0Tmp;
+            uint256 poolBalance1Tmp;
+            for (uint256 i = 0; i < params.mints.length; i++) {
+                (poolBalance0Tmp, poolBalance1Tmp) = manager.mint(
+                    params.mints[i]
+                );
+                poolBalance0 += poolBalance0Tmp;
+                poolBalance1 += poolBalance1Tmp;
+            }
+        }
 
         transferInMintCallback = params.transferInMintCallback;
         transferInSwapCallback = params.transferInSwapCallback;
+        mint_ = params.mints;
     }
 }

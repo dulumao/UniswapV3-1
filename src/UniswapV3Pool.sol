@@ -492,11 +492,9 @@ contract UniswapV3Pool is IUniswapV3Pool {
         emit Flash(msg.sender, amount0, amount1);
     }
 
-    function observe(uint32[] calldata secondsAgos)
-        public
-        view
-        returns (int56[] memory tickCummulatives)
-    {
+    function observe(
+        uint32[] calldata secondsAgos
+    ) public view returns (int56[] memory tickCummulatives) {
         return
             observations.observe(
                 _blockTimestamp(),
@@ -525,13 +523,11 @@ contract UniswapV3Pool is IUniswapV3Pool {
         }
     }
 
-    function _modifyPosition(ModifyPositionParams memory params)
+    function _modifyPosition(
+        ModifyPositionParams memory params
+    )
         internal
-        returns (
-            Position.Info storage position,
-            int256 amount0,
-            int256 amount1
-        )
+        returns (Position.Info storage position, int256 amount0, int256 amount1)
     {
         // gas optimizations
         Slot0 memory slot0_ = slot0;
