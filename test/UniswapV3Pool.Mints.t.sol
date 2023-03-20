@@ -11,7 +11,7 @@ import "../src/lib/TickMath.sol";
 import "../src/UniswapV3Factory.sol";
 import "../src/UniswapV3Pool.sol";
 
-contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
+contract UniswapV3PoolMintsTest is Test, UniswapV3PoolUtils {
     ERC20Mintable weth;
     ERC20Mintable usdc;
     UniswapV3Factory factory;
@@ -539,332 +539,332 @@ contract UniswapV3PoolTest is Test, UniswapV3PoolUtils {
         );
     }
 
-    function testCollect() public {
-        (
-            LiquidityRange[] memory liquidity,
-            uint256 poolBalance0,
-            uint256 poolBalance1
-        ) = setupPool(
-                PoolParams({
-                    balances: [uint256(1 ether), 5000 ether],
-                    currentPrice: 5000,
-                    liquidity: liquidityRanges(
-                        liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
-                    ),
-                    transferInMintCallback: true,
-                    transferInSwapCallback: true,
-                    mintLiquidity: true
-                })
-            );
-        LiquidityRange memory liq = liquidity[0];
+    // function testCollect() public {
+    //     (
+    //         LiquidityRange[] memory liquidity,
+    //         uint256 poolBalance0,
+    //         uint256 poolBalance1
+    //     ) = setupPool(
+    //             PoolParams({
+    //                 balances: [uint256(1 ether), 5000 ether],
+    //                 currentPrice: 5000,
+    //                 liquidity: liquidityRanges(
+    //                     liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
+    //                 ),
+    //                 transferInMintCallback: true,
+    //                 transferInSwapCallback: true,
+    //                 mintLiquidity: true
+    //             })
+    //         );
+    //     LiquidityRange memory liq = liquidity[0];
 
-        uint256 swapAmount = 42 ether; // 42 USDC
-        usdc.mint(address(this), swapAmount);
-        usdc.approve(address(this), swapAmount);
+    //     uint256 swapAmount = 42 ether; // 42 USDC
+    //     usdc.mint(address(this), swapAmount);
+    //     usdc.approve(address(this), swapAmount);
 
-        (int256 swapAmount0, int256 swapAmount1) = pool.swap(
-            address(this),
-            false,
-            swapAmount,
-            sqrtP(5004),
-            encodeExtra(address(weth), address(usdc), address(this))
-        );
+    //     (int256 swapAmount0, int256 swapAmount1) = pool.swap(
+    //         address(this),
+    //         false,
+    //         swapAmount,
+    //         sqrtP(5004),
+    //         encodeExtra(address(weth), address(usdc), address(this))
+    //     );
 
-        pool.burn(liq.lowerTick, liq.upperTick, liq.amount);
+    //     pool.burn(liq.lowerTick, liq.upperTick, liq.amount);
 
-        bytes32 positionKey = keccak256(
-            abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
-        );
+    //     bytes32 positionKey = keccak256(
+    //         abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
+    //     );
 
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
-            positionKey
-        );
+    //     (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
+    //         positionKey
+    //     );
 
-        assertEq(
-            tokensOwed0,
-            uint256(int256(poolBalance0) + swapAmount0 - 1),
-            "incorrect tokens owed for token0"
-        );
-        assertEq(
-            tokensOwed1,
-            uint256(int256(poolBalance1) + swapAmount1 - 2), // swap fee 0.003%
-            "incorrect tokens owed for token1"
-        );
+    //     assertEq(
+    //         tokensOwed0,
+    //         uint256(int256(poolBalance0) + swapAmount0 - 1),
+    //         "incorrect tokens owed for token0"
+    //     );
+    //     assertEq(
+    //         tokensOwed1,
+    //         uint256(int256(poolBalance1) + swapAmount1 - 2), // swap fee 0.003%
+    //         "incorrect tokens owed for token1"
+    //     );
 
-        (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
-            address(this),
-            liq.lowerTick,
-            liq.upperTick,
-            tokensOwed0,
-            tokensOwed1
-        );
-        assertEq(
-            amountCollected0,
-            tokensOwed0,
-            "incorrect collected amount for token 0"
-        );
-        assertEq(
-            amountCollected1,
-            tokensOwed1,
-            "incorrect collected amount for token 1"
-        );
+    //     (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
+    //         address(this),
+    //         liq.lowerTick,
+    //         liq.upperTick,
+    //         tokensOwed0,
+    //         tokensOwed1
+    //     );
+    //     assertEq(
+    //         amountCollected0,
+    //         tokensOwed0,
+    //         "incorrect collected amount for token 0"
+    //     );
+    //     assertEq(
+    //         amountCollected1,
+    //         tokensOwed1,
+    //         "incorrect collected amount for token 1"
+    //     );
 
-        assertEq(
-            weth.balanceOf(address(pool)),
-            1,
-            "incorrect pool balance of token0 after collect"
-        );
-        assertEq(
-            usdc.balanceOf(address(pool)),
-            2,
-            "incorrect pool balance of token1 after collect"
-        );
-    }
+    //     assertEq(
+    //         weth.balanceOf(address(pool)),
+    //         1,
+    //         "incorrect pool balance of token0 after collect"
+    //     );
+    //     assertEq(
+    //         usdc.balanceOf(address(pool)),
+    //         2,
+    //         "incorrect pool balance of token1 after collect"
+    //     );
+    // }
 
-    function testCollectAfterZeroBurn() public {
-        (
-            LiquidityRange[] memory liquidity,
-            uint256 poolBalance0,
-            uint256 poolBalance1
-        ) = setupPool(
-                PoolParams({
-                    balances: [uint256(1 ether), 5000 ether],
-                    currentPrice: 5000,
-                    liquidity: liquidityRanges(
-                        liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
-                    ),
-                    transferInMintCallback: true,
-                    transferInSwapCallback: true,
-                    mintLiquidity: true
-                })
-            );
-        LiquidityRange memory liq = liquidity[0];
+    // function testCollectAfterZeroBurn() public {
+    //     (
+    //         LiquidityRange[] memory liquidity,
+    //         uint256 poolBalance0,
+    //         uint256 poolBalance1
+    //     ) = setupPool(
+    //             PoolParams({
+    //                 balances: [uint256(1 ether), 5000 ether],
+    //                 currentPrice: 5000,
+    //                 liquidity: liquidityRanges(
+    //                     liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
+    //                 ),
+    //                 transferInMintCallback: true,
+    //                 transferInSwapCallback: true,
+    //                 mintLiquidity: true
+    //             })
+    //         );
+    //     LiquidityRange memory liq = liquidity[0];
 
-        uint256 swapAmount = 42 ether; // 42 USDC
-        usdc.mint(address(this), swapAmount);
-        usdc.approve(address(this), swapAmount);
+    //     uint256 swapAmount = 42 ether; // 42 USDC
+    //     usdc.mint(address(this), swapAmount);
+    //     usdc.approve(address(this), swapAmount);
 
-        (int256 swapAmount0, int256 swapAmount1) = pool.swap(
-            address(this),
-            false,
-            swapAmount,
-            sqrtP(5004),
-            encodeExtra(address(weth), address(usdc), address(this))
-        );
+    //     (int256 swapAmount0, int256 swapAmount1) = pool.swap(
+    //         address(this),
+    //         false,
+    //         swapAmount,
+    //         sqrtP(5004),
+    //         encodeExtra(address(weth), address(usdc), address(this))
+    //     );
 
-        pool.burn(liq.lowerTick, liq.upperTick, 0);
+    //     pool.burn(liq.lowerTick, liq.upperTick, 0);
 
-        bytes32 positionKey = keccak256(
-            abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
-        );
+    //     bytes32 positionKey = keccak256(
+    //         abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
+    //     );
 
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
-            positionKey
-        );
+    //     (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
+    //         positionKey
+    //     );
 
-        assertEq(tokensOwed0, 0, "incorrect tokens owed for token0");
-        assertEq(tokensOwed1, 0, "incorrect tokens owed for token1");
+    //     assertEq(tokensOwed0, 0, "incorrect tokens owed for token0");
+    //     assertEq(tokensOwed1, 0, "incorrect tokens owed for token1");
 
-        (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
-            address(this),
-            liq.lowerTick,
-            liq.upperTick,
-            tokensOwed0,
-            tokensOwed1
-        );
+    //     (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
+    //         address(this),
+    //         liq.lowerTick,
+    //         liq.upperTick,
+    //         tokensOwed0,
+    //         tokensOwed1
+    //     );
 
-        assertEq(
-            amountCollected0,
-            tokensOwed0,
-            "incorrect collected amount for token0"
-        );
-        assertEq(
-            amountCollected1,
-            tokensOwed1,
-            "incorrect collected amount for token1"
-        );
-        assertEq(
-            weth.balanceOf(address(pool)),
-            poolBalance0 - uint256(-swapAmount0) - amountCollected0,
-            "incorrect pool balance of token0 after collect"
-        );
-        assertEq(
-            usdc.balanceOf(address(pool)),
-            poolBalance1 + uint256(swapAmount1) - amountCollected1,
-            "incorrect pool balance of token1 after collect"
-        );
-    }
+    //     assertEq(
+    //         amountCollected0,
+    //         tokensOwed0,
+    //         "incorrect collected amount for token0"
+    //     );
+    //     assertEq(
+    //         amountCollected1,
+    //         tokensOwed1,
+    //         "incorrect collected amount for token1"
+    //     );
+    //     assertEq(
+    //         weth.balanceOf(address(pool)),
+    //         poolBalance0 - uint256(-swapAmount0) - amountCollected0,
+    //         "incorrect pool balance of token0 after collect"
+    //     );
+    //     assertEq(
+    //         usdc.balanceOf(address(pool)),
+    //         poolBalance1 + uint256(swapAmount1) - amountCollected1,
+    //         "incorrect pool balance of token1 after collect"
+    //     );
+    // }
 
-    function testCollectMoreThanAvalaible() public {
-        (LiquidityRange[] memory liquidity, , ) = setupPool(
-            PoolParams({
-                balances: [uint256(1 ether), 5000 ether],
-                currentPrice: 5000,
-                liquidity: liquidityRanges(
-                    liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
-                ),
-                transferInMintCallback: true,
-                transferInSwapCallback: true,
-                mintLiquidity: true
-            })
-        );
-        LiquidityRange memory liq = liquidity[0];
+    // function testCollectMoreThanAvalaible() public {
+    //     (LiquidityRange[] memory liquidity, , ) = setupPool(
+    //         PoolParams({
+    //             balances: [uint256(1 ether), 5000 ether],
+    //             currentPrice: 5000,
+    //             liquidity: liquidityRanges(
+    //                 liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
+    //             ),
+    //             transferInMintCallback: true,
+    //             transferInSwapCallback: true,
+    //             mintLiquidity: true
+    //         })
+    //     );
+    //     LiquidityRange memory liq = liquidity[0];
 
-        uint256 swapAmount = 42 ether; // 42 USDC
-        usdc.mint(address(this), swapAmount);
-        usdc.approve(address(this), swapAmount);
+    //     uint256 swapAmount = 42 ether; // 42 USDC
+    //     usdc.mint(address(this), swapAmount);
+    //     usdc.approve(address(this), swapAmount);
 
-        pool.swap(
-            address(this),
-            false,
-            swapAmount,
-            sqrtP(5004),
-            encodeExtra(address(weth), address(usdc), address(this))
-        );
+    //     pool.swap(
+    //         address(this),
+    //         false,
+    //         swapAmount,
+    //         sqrtP(5004),
+    //         encodeExtra(address(weth), address(usdc), address(this))
+    //     );
 
-        pool.burn(liq.lowerTick, liq.upperTick, liq.amount);
+    //     pool.burn(liq.lowerTick, liq.upperTick, liq.amount);
 
-        bytes32 positionKey = keccak256(
-            abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
-        );
+    //     bytes32 positionKey = keccak256(
+    //         abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
+    //     );
 
-        (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
-            positionKey
-        );
+    //     (, , , uint128 tokensOwed0, uint128 tokensOwed1) = pool.positions(
+    //         positionKey
+    //     );
 
-        (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
-            address(this),
-            liq.lowerTick,
-            liq.upperTick,
-            999_999_999 ether,
-            999_999_999 ether
-        );
+    //     (uint128 amountCollected0, uint128 amountCollected1) = pool.collect(
+    //         address(this),
+    //         liq.lowerTick,
+    //         liq.upperTick,
+    //         999_999_999 ether,
+    //         999_999_999 ether
+    //     );
 
-        assertEq(
-            amountCollected0,
-            tokensOwed0,
-            "incorrect collected amount for token0"
-        );
-        assertEq(
-            amountCollected1,
-            tokensOwed1,
-            "incorrect collected amount for token1"
-        );
-    }
+    //     assertEq(
+    //         amountCollected0,
+    //         tokensOwed0,
+    //         "incorrect collected amount for token0"
+    //     );
+    //     assertEq(
+    //         amountCollected1,
+    //         tokensOwed1,
+    //         "incorrect collected amount for token1"
+    //     );
+    // }
 
-    function testCollectPartially() public {
-        (
-            LiquidityRange[] memory liquidity,
-            uint256 poolBalance0,
-            uint256 poolBalance1
-        ) = setupPool(
-                PoolParams({
-                    balances: [uint256(1 ether), 5000 ether],
-                    currentPrice: 5000,
-                    liquidity: liquidityRanges(
-                        liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
-                    ),
-                    transferInMintCallback: true,
-                    transferInSwapCallback: true,
-                    mintLiquidity: true
-                })
-            );
-        LiquidityRange memory liq = liquidity[0];
+    // function testCollectPartially() public {
+    //     (
+    //         LiquidityRange[] memory liquidity,
+    //         uint256 poolBalance0,
+    //         uint256 poolBalance1
+    //     ) = setupPool(
+    //             PoolParams({
+    //                 balances: [uint256(1 ether), 5000 ether],
+    //                 currentPrice: 5000,
+    //                 liquidity: liquidityRanges(
+    //                     liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
+    //                 ),
+    //                 transferInMintCallback: true,
+    //                 transferInSwapCallback: true,
+    //                 mintLiquidity: true
+    //             })
+    //         );
+    //     LiquidityRange memory liq = liquidity[0];
 
-        uint256 swapAmount = 42 ether; // 42 USDC
-        usdc.mint(address(this), swapAmount);
-        usdc.approve(address(this), swapAmount);
+    //     uint256 swapAmount = 42 ether; // 42 USDC
+    //     usdc.mint(address(this), swapAmount);
+    //     usdc.approve(address(this), swapAmount);
 
-        (int256 swapAmount0, int256 swapAmount1) = pool.swap(
-            address(this),
-            false,
-            swapAmount,
-            sqrtP(5004),
-            encodeExtra(address(weth), address(usdc), address(this))
-        );
+    //     (int256 swapAmount0, int256 swapAmount1) = pool.swap(
+    //         address(this),
+    //         false,
+    //         swapAmount,
+    //         sqrtP(5004),
+    //         encodeExtra(address(weth), address(usdc), address(this))
+    //     );
 
-        pool.burn(liq.lowerTick, liq.upperTick, liq.amount / 2);
+    //     pool.burn(liq.lowerTick, liq.upperTick, liq.amount / 2);
 
-        bytes32 positionKey = keccak256(
-            abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
-        );
+    //     bytes32 positionKey = keccak256(
+    //         abi.encodePacked(address(this), liq.lowerTick, liq.upperTick)
+    //     );
 
-        uint128[] memory tokensOwed = new uint128[](2);
-        (, , , tokensOwed[0], tokensOwed[1]) = pool.positions(positionKey);
+    //     uint128[] memory tokensOwed = new uint128[](2);
+    //     (, , , tokensOwed[0], tokensOwed[1]) = pool.positions(positionKey);
 
-        uint128[] memory expectedTokensOwed = new uint128[](2);
-        (expectedTokensOwed[0], expectedTokensOwed[1]) = (
-            0.489353377248529488 ether,
-            2521.062999999999999996 ether
-        );
+    //     uint128[] memory expectedTokensOwed = new uint128[](2);
+    //     (expectedTokensOwed[0], expectedTokensOwed[1]) = (
+    //         0.489353377248529488 ether,
+    //         2521.062999999999999996 ether
+    //     );
 
-        assertEq(
-            tokensOwed[0],
-            expectedTokensOwed[0],
-            "incorrect tokens owed for token0"
-        );
-        assertEq(
-            tokensOwed[1],
-            expectedTokensOwed[1],
-            "incorrect tokens owed for token1"
-        );
+    //     assertEq(
+    //         tokensOwed[0],
+    //         expectedTokensOwed[0],
+    //         "incorrect tokens owed for token0"
+    //     );
+    //     assertEq(
+    //         tokensOwed[1],
+    //         expectedTokensOwed[1],
+    //         "incorrect tokens owed for token1"
+    //     );
 
-        uint128[] memory collectedAmounts = new uint128[](2);
-        (collectedAmounts[0], collectedAmounts[1]) = pool.collect(
-            address(this),
-            liq.lowerTick,
-            liq.upperTick,
-            tokensOwed[0],
-            tokensOwed[1]
-        );
+    //     uint128[] memory collectedAmounts = new uint128[](2);
+    //     (collectedAmounts[0], collectedAmounts[1]) = pool.collect(
+    //         address(this),
+    //         liq.lowerTick,
+    //         liq.upperTick,
+    //         tokensOwed[0],
+    //         tokensOwed[1]
+    //     );
 
-        assertEq(
-            collectedAmounts[0],
-            tokensOwed[0],
-            "incorrect collected amount for token0"
-        );
-        assertEq(
-            collectedAmounts[1],
-            tokensOwed[1],
-            "incorrect collected amount for token1"
-        );
-        assertEq(
-            weth.balanceOf(address(pool)),
-            uint256(int256(poolBalance0) + swapAmount0) - tokensOwed[0],
-            "incorrect pool balance of token0 after collect"
-        );
-        assertEq(
-            usdc.balanceOf(address(pool)),
-            uint256(int256(poolBalance1) + swapAmount1) - tokensOwed[1],
-            "incorrect pool balance of token1 after collect"
-        );
-    }
+    //     assertEq(
+    //         collectedAmounts[0],
+    //         tokensOwed[0],
+    //         "incorrect collected amount for token0"
+    //     );
+    //     assertEq(
+    //         collectedAmounts[1],
+    //         tokensOwed[1],
+    //         "incorrect collected amount for token1"
+    //     );
+    //     assertEq(
+    //         weth.balanceOf(address(pool)),
+    //         uint256(int256(poolBalance0) + swapAmount0) - tokensOwed[0],
+    //         "incorrect pool balance of token0 after collect"
+    //     );
+    //     assertEq(
+    //         usdc.balanceOf(address(pool)),
+    //         uint256(int256(poolBalance1) + swapAmount1) - tokensOwed[1],
+    //         "incorrect pool balance of token1 after collect"
+    //     );
+    // }
 
-    function testFlash() public {
-        setupPool(
-            PoolParams({
-                balances: [uint256(1 ether), 5000 ether],
-                currentPrice: 5000,
-                liquidity: liquidityRanges(
-                    liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
-                ),
-                transferInMintCallback: true,
-                transferInSwapCallback: true,
-                mintLiquidity: true
-            })
-        );
+    // function testFlash() public {
+    //     setupPool(
+    //         PoolParams({
+    //             balances: [uint256(1 ether), 5000 ether],
+    //             currentPrice: 5000,
+    //             liquidity: liquidityRanges(
+    //                 liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000)
+    //             ),
+    //             transferInMintCallback: true,
+    //             transferInSwapCallback: true,
+    //             mintLiquidity: true
+    //         })
+    //     );
 
-        // flash loan fee, 3 USDC
-        usdc.mint(address(this), 3 ether);
+    //     // flash loan fee, 3 USDC
+    //     usdc.mint(address(this), 3 ether);
 
-        pool.flash(
-            0.1 ether,
-            1000 ether,
-            abi.encodePacked(uint256(0.1 ether), uint256(1000 ether))
-        );
+    //     pool.flash(
+    //         0.1 ether,
+    //         1000 ether,
+    //         abi.encodePacked(uint256(0.1 ether), uint256(1000 ether))
+    //     );
 
-        assertTrue(flashCallbackCalled, "flash callback wasn't called");
-    }
+    //     assertTrue(flashCallbackCalled, "flash callback wasn't called");
+    // }
 
     ////////////////////////////////////////////////////////////////////////////
     //

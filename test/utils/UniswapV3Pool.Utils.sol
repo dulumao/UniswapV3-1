@@ -52,11 +52,9 @@ contract UniswapV3PoolUtils is Test, TestUtils {
         });
     }
 
-    function liquidityRanges(LiquidityRange memory range)
-        internal
-        pure
-        returns (LiquidityRange[] memory ranges)
-    {
+    function liquidityRanges(
+        LiquidityRange memory range
+    ) internal pure returns (LiquidityRange[] memory ranges) {
         ranges = new LiquidityRange[](1);
         ranges[0] = range;
     }
@@ -70,11 +68,9 @@ contract UniswapV3PoolUtils is Test, TestUtils {
         ranges[1] = range2;
     }
 
-    function rangeToTicks(LiquidityRange memory range)
-        internal
-        pure
-        returns (ExpectedTickShort[2] memory ticks)
-    {
+    function rangeToTicks(
+        LiquidityRange memory range
+    ) internal pure returns (ExpectedTickShort[2] memory ticks) {
         ticks[0] = ExpectedTickShort({
             tick: range.lowerTick,
             initialized: true,
